@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { trustItems } from "@/lib/tools";
+import { trustText } from "@/lib/i18n";
+import { useLanguage } from "@/components/useLanguage";
 
 const trustStyles = [
   {
@@ -28,23 +30,19 @@ const trustStyles = [
   }
 ];
 
-const trustDetails = [
-  "Oddiy vazifalar imkon qadar brauzer ichida bajariladi. Bu tezlikni oshiradi va foydalanuvchi ish jarayonini ortiqcha kutishsiz davom ettiradi.",
-  "Tool'lar bitta panelda tartiblangan: kod, data, rasm va tekshiruv ishlari uchun alohida sayt qidirish shart emas.",
-  "Loyiha asosiy funksiyalar bilan ishga tayyor: keyingi bosqichlarda login, limit, admin boshqaruv va server qayta ishlovlari yanada kuchaytiriladi."
-];
-
 export function TrustCards() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const activeItem = activeIndex === null ? null : trustItems[activeIndex];
+  const { language, t } = useLanguage();
+  const localizedTrustItems = trustText[language];
+  const activeItem = activeIndex === null ? null : localizedTrustItems[activeIndex];
   const activeStyle = activeIndex === null ? null : trustStyles[activeIndex] ?? trustStyles[0];
-  const activeDetail = activeIndex === null ? "" : trustDetails[activeIndex] ?? "";
+  const activeDetail = activeIndex === null ? "" : localizedTrustItems[activeIndex]?.detail ?? "";
 
   return (
     <>
       <div className="trust-card-row mx-auto grid max-w-7xl gap-4 px-4 py-9 sm:px-6 md:grid-cols-3 lg:px-8">
-        {trustItems.map((item, index) => {
-          const Icon = item.icon;
+        {localizedTrustItems.map((item, index) => {
+          const Icon = trustItems[index]?.icon ?? trustItems[0].icon;
           const style = trustStyles[index] ?? trustStyles[0];
 
           return (
@@ -63,7 +61,7 @@ export function TrustCards() {
                   type="button"
                   onClick={() => setActiveIndex(index)}
                 >
-                  To'liq o'qish
+                  {t("readMore")}
                 </button>
               </span>
             </div>
@@ -83,7 +81,7 @@ export function TrustCards() {
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-panel text-ink hover:bg-mint"
                 type="button"
                 onClick={() => setActiveIndex(null)}
-                aria-label="Oynani yopish"
+                aria-label={t("closeWindow")}
               >
                 <X size={18} />
               </button>

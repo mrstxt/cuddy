@@ -1,6 +1,7 @@
 import {
   Braces,
   Code2,
+  Files,
   FileCode2,
   FileSpreadsheet,
   FileText,
@@ -172,7 +173,7 @@ export const tools: Tool[] = [
     description: "Rasm fonini tez va sifatli olib tashlang.",
     outcome: "Rasm foni olib tashlanadi, transparent natija olinadi.",
     action: "Fonni olib tashlash",
-    category: "AI",
+    category: "Image",
     frontendOnly: false,
     icon: Scissors,
     accent: {
@@ -204,7 +205,7 @@ export const tools: Tool[] = [
     description: "Kod bo'lagini boshqa tilga o'tkazing va xatolarini AI orqali tekshiring.",
     outcome: "Kod boshqa tilga tarjima bo'ladi yoki xatosi tekshiriladi.",
     action: "Kod tarjima qilish",
-    category: "AI",
+    category: "Developer",
     frontendOnly: false,
     icon: Languages,
     accent: {
@@ -260,6 +261,38 @@ export const tools: Tool[] = [
       icon: "bg-[#15803d] text-white",
       pill: "bg-[#dcfce7] text-[#14532d]",
       outcome: "bg-[#dcfce7] text-[#14532d]"
+    }
+  },
+  {
+    slug: "pdf-merge",
+    name: "PDF Merge",
+    description: "Bir nechta alohida PDF faylni kerakli tartibda bitta katta PDF qilib birlashtiring.",
+    outcome: "PDFlar ketma-ket tartiblanadi va bitta yakuniy PDF faylga aylanadi.",
+    action: "PDF birlashtirish",
+    category: "Office",
+    frontendOnly: true,
+    icon: Files,
+    accent: {
+      card: "bg-[linear-gradient(145deg,#f5f3ff_0%,#ddd6fe_100%)]",
+      icon: "bg-[#7c3aed] text-white",
+      pill: "bg-[#ede9fe] text-[#4c1d95]",
+      outcome: "bg-[#ede9fe] text-[#4c1d95]"
+    }
+  },
+  {
+    slug: "pdf-compressor",
+    name: "PDF Compressor",
+    description: "PDF faylni qayta optimallashtirib, hajmini kamaytirishga urinib ko'ring.",
+    outcome: "PDF qayta saqlanadi, object stream optimizatsiyasi orqali hajm qisqarishi mumkin.",
+    action: "PDF siqish",
+    category: "Office",
+    frontendOnly: true,
+    icon: FileText,
+    accent: {
+      card: "bg-[linear-gradient(145deg,#fff7ed_0%,#fed7aa_100%)]",
+      icon: "bg-[#ea580c] text-white",
+      pill: "bg-[#ffedd5] text-[#7c2d12]",
+      outcome: "bg-[#ffedd5] text-[#7c2d12]"
     }
   }
 ];

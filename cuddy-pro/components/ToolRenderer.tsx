@@ -3,16 +3,16 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as CryptoJS from "crypto-js";
-import { Copy, Download, FileText, Play, Printer, Repeat2, Scissors, ShieldCheck, Wand2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Download, FileText, Play, Printer, Repeat2, Scissors, ShieldCheck, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
+import { consumeUserTool, getCurrentUser, getToolUsage, GUEST_LIMIT, USER_TOOL_LIMIT } from "@/lib/auth";
 
 type Props = {
   slug: string;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const FREE_LIMIT = 3;
 
 const PROGRAMMING_LANGUAGES = [
   "JavaScript",
@@ -63,6 +63,12 @@ function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   downloadDataUrl(url, filename);
   URL.revokeObjectURL(url);
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
 function escapeHtml(value: string) {
@@ -131,11 +137,15 @@ export default function ToolRenderer({ slug }: Props) {
       {slug === "text-to-pdf" ? <TextToPdfTool gate={gate} /> : null}
       {slug === "image-to-pdf" ? <ImageToPdfTool gate={gate} /> : null}
       {slug === "csv-excel-tool" ? <CsvExcelTool gate={gate} /> : null}
+      {slug === "pdf-merge" ? <PdfMergeTool gate={gate} /> : null}
+      {slug === "pdf-compressor" ? <PdfCompressorTool gate={gate} /> : null}
     </div>
   );
 }
 
 type UsageGate = {
+  limit: number;
+  used: number;
   remaining: number;
   signedIn: boolean;
   consume: () => boolean;
@@ -143,16 +153,38 @@ type UsageGate = {
 
 function useUsageGate(slug: string): UsageGate {
   const [used, setUsed] = useState(0);
+  const [limit, setLimit] = useState(GUEST_LIMIT);
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    setSignedIn(localStorage.getItem("cuddy-auth") === "true");
+    const user = getCurrentUser();
+    setSignedIn(Boolean(user));
+    if (user) {
+      const record = getToolUsage(user.id, slug);
+      setUsed(record.used);
+      setLimit(record.limit);
+      return;
+    }
     setUsed(Number(localStorage.getItem(`cuddy-usage-${slug}`) ?? "0"));
+    setLimit(GUEST_LIMIT);
   }, [slug]);
 
   function consume() {
-    if (signedIn) return true;
-    if (used >= FREE_LIMIT) {
+    const user = getCurrentUser();
+    if (user) {
+      const current = getToolUsage(user.id, slug);
+      if (current.used >= current.limit) {
+        window.location.href = "/profile";
+        return false;
+      }
+      const next = consumeUserTool(user.id, slug);
+      setSignedIn(true);
+      setUsed(next.used);
+      setLimit(next.limit);
+      return true;
+    }
+
+    if (used >= GUEST_LIMIT) {
       window.location.href = "/login";
       return false;
     }
@@ -163,7 +195,9 @@ function useUsageGate(slug: string): UsageGate {
   }
 
   return {
-    remaining: signedIn ? FREE_LIMIT : Math.max(0, FREE_LIMIT - used),
+    limit,
+    used,
+    remaining: Math.max(0, limit - used),
     signedIn,
     consume
   };
@@ -173,11 +207,14 @@ function UsageBanner({ gate }: { gate: UsageGate }) {
   return (
     <div className="rounded-[28px] border border-white/80 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_100%)] p-4 text-sm shadow-sm backdrop-blur">
       {gate.signedIn ? (
-        <span className="font-bold text-ink">Hisobga kirilgan. Funksiyalardan foydalanish profilingizga bog'langan.</span>
+        <span className="font-bold text-ink">
+          Hisobga kirilgan. Bu funksiya limiti: {gate.used}/{gate.limit}. Qolgan: {gate.remaining}.
+        </span>
       ) : (
         <span className="text-ink/72">
-          Har bir funksiya <strong className="text-ink">3 martagacha bepul</strong>. Qolgan urinish:
-          <strong className="ml-1 text-ink">{gate.remaining}</strong>. Davom ettirish uchun kirish yoki ro'yxatdan o'tish kerak bo'ladi.
+          Har bir funksiya mehmonlar uchun <strong className="text-ink">{GUEST_LIMIT} martagacha bepul</strong>. Qolgan urinish:
+          <strong className="ml-1 text-ink">{gate.remaining}</strong>. Ro'yxatdan o'tgach har funksiya uchun demo limit:
+          <strong className="ml-1 text-ink">{USER_TOOL_LIMIT}</strong>.
         </span>
       )}
     </div>
@@ -812,6 +849,146 @@ function CsvExcelTool({ gate }: { gate: UsageGate }) {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function PdfMergeTool({ gate }: { gate: UsageGate }) {
+  const [files, setFiles] = useState<File[]>([]);
+  const [status, setStatus] = useState("");
+
+  function addFiles(selectedFiles: FileList | null) {
+    if (!selectedFiles) return;
+    setFiles((current) => [...current, ...Array.from(selectedFiles).filter((file) => file.type === "application/pdf")]);
+    setStatus("");
+  }
+
+  function moveFile(index: number, direction: -1 | 1) {
+    setFiles((current) => {
+      const next = [...current];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return current;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  async function mergePdfs() {
+    if (!gate.consume()) return;
+    if (files.length < 2) {
+      setStatus("Kamida 2 ta PDF tanlang.");
+      return;
+    }
+
+    setStatus("PDFlar birlashtirilmoqda...");
+    const { PDFDocument } = await import("pdf-lib");
+    const mergedPdf = await PDFDocument.create();
+
+    for (const file of files) {
+      const sourcePdf = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+      const copiedPages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+      copiedPages.forEach((page) => mergedPdf.addPage(page));
+    }
+
+    const mergedBytes = await mergedPdf.save({ useObjectStreams: true });
+    downloadBlob(new Blob([new Uint8Array(mergedBytes)], { type: "application/pdf" }), "merged-cuddy.pdf");
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    setStatus(`Tayyor: ${files.length} ta PDF -> ${formatBytes(mergedBytes.length)}. Oldingi jami: ${formatBytes(totalSize)}.`);
+  }
+
+  return (
+    <Panel>
+      <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid content-start gap-4">
+          <input type="file" accept="application/pdf" multiple className={fileInputClass} onChange={(event) => addFiles(event.target.files)} />
+          <Button disabled={files.length < 2} onClick={mergePdfs} className="inline-flex w-fit items-center gap-2">
+            <Download size={16} /> Bitta PDF qilish
+          </Button>
+          {status ? <p className="rounded-[20px] bg-panel p-4 text-sm font-bold text-ink/72">{status}</p> : null}
+        </div>
+
+        <div className="rounded-[28px] border border-black/10 bg-panel p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-xs font-black uppercase text-ink/45">Tartib</span>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink">{files.length} PDF</span>
+          </div>
+          <div className="grid gap-2">
+            {files.map((file, index) => (
+              <div key={`${file.name}-${index}`} className="flex items-center gap-2 rounded-[20px] bg-white p-3 shadow-sm">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-sm font-black text-mint">{index + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-sm text-ink">{file.name}</strong>
+                  <span className="text-xs font-bold text-ink/45">{formatBytes(file.size)}</span>
+                </span>
+                <button className="grid h-9 w-9 place-items-center rounded-full bg-panel text-ink hover:bg-mint" type="button" onClick={() => moveFile(index, -1)} aria-label="Yuqoriga">
+                  <ArrowUp size={15} />
+                </button>
+                <button className="grid h-9 w-9 place-items-center rounded-full bg-panel text-ink hover:bg-mint" type="button" onClick={() => moveFile(index, 1)} aria-label="Pastga">
+                  <ArrowDown size={15} />
+                </button>
+                <button className="grid h-9 w-9 place-items-center rounded-full bg-[#fff1ed] text-tomato hover:bg-tomato hover:text-white" type="button" onClick={() => setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} aria-label="O'chirish">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+            {!files.length ? <p className="rounded-[20px] bg-white p-4 text-sm font-bold text-ink/45">PDF fayllarni tanlang, keyin tartibini yuqori/past tugmalar bilan sozlang.</p> : null}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function PdfCompressorTool({ gate }: { gate: UsageGate }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState("");
+
+  async function compressPdf() {
+    if (!gate.consume()) return;
+    if (!file) return;
+
+    setStatus("PDF optimallashtirilmoqda...");
+    const { PDFDocument } = await import("pdf-lib");
+    const sourcePdf = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+    const optimizedBytes = await sourcePdf.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+      updateFieldAppearances: false
+    });
+    const optimizedSize = optimizedBytes.length;
+    const delta = file.size - optimizedSize;
+    const percent = file.size ? Math.max(0, (delta / file.size) * 100).toFixed(1) : "0.0";
+
+    downloadBlob(new Blob([new Uint8Array(optimizedBytes)], { type: "application/pdf" }), "compressed-cuddy.pdf");
+    setStatus(
+      delta > 0
+        ? `Tayyor: ${formatBytes(file.size)} -> ${formatBytes(optimizedSize)}. Taxminiy kamayish: ${percent}%.`
+        : `PDF qayta optimallashtirildi. Hajm: ${formatBytes(optimizedSize)}. Bu faylda siqish imkoniyati kam bo'lishi mumkin.`
+    );
+  }
+
+  return (
+    <Panel>
+      <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid content-start gap-4">
+          <input type="file" accept="application/pdf" className={fileInputClass} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <Button disabled={!file} onClick={compressPdf} className="inline-flex w-fit items-center gap-2">
+            <Download size={16} /> Siqish va yuklash
+          </Button>
+          {status ? <p className="rounded-[20px] bg-panel p-4 text-sm font-bold text-ink/72">{status}</p> : null}
+        </div>
+        <div className="rounded-[28px] border border-black/10 bg-panel p-5">
+          <span className="text-xs font-black uppercase text-ink/45">Ma'lumot</span>
+          <div className="mt-3 rounded-[24px] bg-white p-5 shadow-sm">
+            <strong className="block text-lg text-ink">{file ? file.name : "PDF tanlanmagan"}</strong>
+            <p className="mt-2 text-sm leading-6 text-ink/65">
+              {file
+                ? `Hajm: ${formatBytes(file.size)}. PDF object stream optimizatsiyasi orqali qayta saqlanadi. Skan qilingan rasmli PDFlarda katta kamayish har doim ham bo'lmasligi mumkin.`
+                : "PDF fayl tanlang. Fayl brauzer ichida qayta ishlanadi."}
+            </p>
+          </div>
         </div>
       </div>
     </Panel>
