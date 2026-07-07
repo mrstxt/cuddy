@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Download, KeyRound, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { BarChart3, Download, KeyRound, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
 
-type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "support";
 
 type EditableTool = {
   slug: string;
@@ -46,9 +46,27 @@ type AdminState = {
   privacy: PrivacyContent;
 };
 
+type SupportMessage = {
+  id: string;
+  from: "user" | "admin";
+  text: string;
+  createdAt: string;
+};
+
 const ADMIN_STORAGE_KEY = "cuddy-admin-state";
 const ADMIN_AUTH_KEY = "cuddy-admin-auth";
 const ADMIN_CODE = "cuddy-pro";
+const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
+const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
+
+const starterSupportMessages: SupportMessage[] = [
+  {
+    id: "welcome",
+    from: "admin",
+    text: "Salom! Cuddy Pro support. Savolingizni yozing, admin javobini shu chatda ko'rasiz.",
+    createdAt: new Date().toISOString()
+  }
+];
 
 const defaultTools: EditableTool[] = [
   {
@@ -213,6 +231,7 @@ export function AdminPanel() {
   const [code, setCode] = useState("");
   const [tab, setTab] = useState<AdminTab>("analytics");
   const [state, setState] = useState<AdminState>(defaultState);
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(starterSupportMessages);
   const [savedAt, setSavedAt] = useState("");
 
   useEffect(() => {
@@ -228,13 +247,33 @@ export function AdminPanel() {
     }
   }, []);
 
+  useEffect(() => {
+    function syncSupport() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SUPPORT_MESSAGES_KEY) ?? "null") as SupportMessage[] | null;
+        setSupportMessages(saved?.length ? saved : starterSupportMessages);
+      } catch {
+        setSupportMessages(starterSupportMessages);
+      }
+    }
+
+    syncSupport();
+    window.addEventListener("storage", syncSupport);
+    window.addEventListener("cuddy-support-change", syncSupport);
+
+    return () => {
+      window.removeEventListener("storage", syncSupport);
+      window.removeEventListener("cuddy-support-change", syncSupport);
+    };
+  }, []);
+
   const stats = useMemo(
     () => [
       { label: "Tool", value: state.tools.length },
       { label: "Faol", value: state.tools.filter((tool) => tool.enabled).length },
-      { label: "Limit to'siq", value: getAnalyticsRows(state.tools).reduce((sum, row) => sum + row.blocked, 0) }
+      { label: "Support", value: supportMessages.filter((message) => message.from === "user").length }
     ],
-    [state.tools]
+    [state.tools, supportMessages]
   );
 
   function login() {
@@ -246,12 +285,14 @@ export function AdminPanel() {
 
   function save() {
     localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(state));
+    window.dispatchEvent(new CustomEvent("cuddy-admin-state-change"));
     setSavedAt(new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }));
   }
 
   function reset() {
     setState(defaultState);
     localStorage.removeItem(ADMIN_STORAGE_KEY);
+    window.dispatchEvent(new CustomEvent("cuddy-admin-state-change"));
     setSavedAt("reset");
   }
 
@@ -277,6 +318,25 @@ export function AdminPanel() {
       ...current,
       limits: current.limits.map((limit, limitIndex) => (limitIndex === index ? { ...limit, ...patch } : limit))
     }));
+  }
+
+  function saveSupportMessages(nextMessages: SupportMessage[]) {
+    setSupportMessages(nextMessages);
+    localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(nextMessages));
+    window.dispatchEvent(new CustomEvent("cuddy-support-change"));
+  }
+
+  function sendSupportReply(text: string) {
+    const reply: SupportMessage = {
+      id: `admin-${Date.now()}`,
+      from: "admin",
+      text,
+      createdAt: new Date().toISOString()
+    };
+    saveSupportMessages([...supportMessages, reply]);
+    const unread = Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "0") + 1;
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(unread));
+    window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
   if (!authorized) {
@@ -354,7 +414,8 @@ export function AdminPanel() {
               { id: "limits" as const, label: "Limitlar", icon: SlidersHorizontal },
               { id: "tools" as const, label: "Tool'lar" },
               { id: "site" as const, label: "Sayt matnlari" },
-              { id: "privacy" as const, label: "Maxfiylik" }
+              { id: "privacy" as const, label: "Maxfiylik" },
+              { id: "support" as const, label: "Support", icon: MessageCircle }
             ].map((item) => (
               <button
                 key={item.id}
@@ -380,6 +441,7 @@ export function AdminPanel() {
             {tab === "privacy" ? (
               <PrivacyEditor privacy={state.privacy} setPrivacy={(privacy) => setState((current) => ({ ...current, privacy }))} />
             ) : null}
+            {tab === "support" ? <SupportInbox messages={supportMessages} sendReply={sendSupportReply} clearMessages={() => saveSupportMessages(starterSupportMessages)} /> : null}
           </section>
         </div>
       </section>
@@ -561,6 +623,87 @@ function PrivacyEditor({ privacy, setPrivacy }: { privacy: PrivacyContent; setPr
         <AdminTextarea label="2-bo'lim matn" value={privacy.serverBody} onChange={(serverBody) => setPrivacy({ ...privacy, serverBody })} />
         <AdminInput label="3-bo'lim sarlavha" value={privacy.limitTitle} onChange={(limitTitle) => setPrivacy({ ...privacy, limitTitle })} />
         <AdminTextarea label="3-bo'lim matn" value={privacy.limitBody} onChange={(limitBody) => setPrivacy({ ...privacy, limitBody })} />
+      </div>
+    </div>
+  );
+}
+
+function SupportInbox({
+  messages,
+  sendReply,
+  clearMessages
+}: {
+  messages: SupportMessage[];
+  sendReply: (text: string) => void;
+  clearMessages: () => void;
+}) {
+  const [reply, setReply] = useState("");
+  const userMessages = messages.filter((message) => message.from === "user");
+  const lastUserMessage = userMessages[userMessages.length - 1];
+
+  function submitReply() {
+    if (!reply.trim()) return;
+    sendReply(reply.trim());
+    setReply("");
+  }
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <AnalyticsStat label="User xabarlari" value={userMessages.length} />
+        <AnalyticsStat label="Admin javoblari" value={messages.filter((message) => message.from === "admin").length} />
+        <AnalyticsStat label="Oxirgi murojaat" value={lastUserMessage ? new Date(lastUserMessage.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }) : "-"} />
+      </div>
+
+      <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="text-xs font-black uppercase text-ink/45">Support inbox</span>
+            <h2 className="mt-1 text-2xl font-black text-ink">Admin bilan chat xabarlari</h2>
+            <p className="mt-1 text-sm leading-6 text-ink/60">
+              User support iconkasidan yozgan xabarlar shu yerda ko'rinadi. Javob yozsangiz user tomonda bildirishnoma badge chiqadi.
+            </p>
+          </div>
+          <button className="w-fit rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={clearMessages}>
+            Chatni tozalash
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="max-h-[520px] space-y-3 overflow-auto rounded-[26px] bg-panel p-4">
+            {messages.map((message) => (
+              <div key={message.id} className={`flex ${message.from === "admin" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[84%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
+                  <span className={`mb-1 block text-[10px] font-black uppercase ${message.from === "admin" ? "text-mint" : "text-ink/40"}`}>
+                    {message.from === "admin" ? "Admin" : "User"}
+                  </span>
+                  <p>{message.text}</p>
+                  <span className={`mt-2 block text-[10px] font-bold ${message.from === "admin" ? "text-white/50" : "text-ink/40"}`}>
+                    {new Date(message.createdAt).toLocaleString("uz-UZ", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="h-fit rounded-[26px] border border-black/10 bg-panel p-4">
+            <label className="block">
+              <span className="mb-2 block text-sm font-black text-ink">Admin javobi</span>
+              <textarea
+                className="min-h-40 w-full rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none focus:border-mint"
+                value={reply}
+                onChange={(event) => setReply(event.target.value)}
+                placeholder="Javob matnini yozing..."
+              />
+            </label>
+            <button className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-black text-mint shadow-sm hover:bg-black" type="button" onClick={submitReply}>
+              <MessageCircle size={16} /> Javob yuborish
+            </button>
+            <p className="mt-3 text-xs font-bold leading-5 text-ink/45">
+              Demo rejimda xabarlar browser localStorage'da saqlanadi. Production uchun backend support jadvali ulanadi.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

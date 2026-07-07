@@ -1,4 +1,5 @@
 import { tools } from "@/lib/tools";
+import { getAdminLimit } from "@/lib/admin-state";
 
 export const GUEST_LIMIT = 3;
 export const USER_TOOL_LIMIT = 25;
@@ -111,17 +112,22 @@ export function saveUserUsage(userId: string, usage: UserUsage) {
 
 export function getToolUsage(userId: string, slug: string): UsageRecord {
   const usage = getUserUsage(userId);
-  return usage[slug] ?? { used: 0, limit: USER_TOOL_LIMIT, updatedAt: "" };
+  const adminLimit = getAdminLimit(slug, true);
+  const fallback = { used: 0, limit: adminLimit ?? USER_TOOL_LIMIT, updatedAt: "" };
+  const record = usage[slug] ?? fallback;
+  return { ...record, limit: adminLimit ?? record.limit };
 }
 
 export function consumeUserTool(userId: string, slug: string) {
   const usage = getUserUsage(userId);
-  const current = usage[slug] ?? { used: 0, limit: USER_TOOL_LIMIT, updatedAt: "" };
-  if (current.used >= current.limit) return current;
+  const adminLimit = getAdminLimit(slug, true);
+  const current = usage[slug] ?? { used: 0, limit: adminLimit ?? USER_TOOL_LIMIT, updatedAt: "" };
+  const currentWithLimit = { ...current, limit: adminLimit ?? current.limit };
+  if (currentWithLimit.used >= currentWithLimit.limit) return currentWithLimit;
 
   const next = {
-    ...current,
-    used: current.used + 1,
+    ...currentWithLimit,
+    used: currentWithLimit.used + 1,
     updatedAt: new Date().toISOString()
   };
   saveUserUsage(userId, { ...usage, [slug]: next });

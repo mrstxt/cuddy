@@ -7,6 +7,7 @@ import { ArrowDown, ArrowUp, Copy, Download, FileText, Play, Printer, Repeat2, S
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { consumeUserTool, getCurrentUser, getToolUsage, GUEST_LIMIT, USER_TOOL_LIMIT } from "@/lib/auth";
+import { getAdminLimit } from "@/lib/admin-state";
 
 type Props = {
   slug: string;
@@ -166,7 +167,7 @@ function useUsageGate(slug: string): UsageGate {
       return;
     }
     setUsed(Number(localStorage.getItem(`cuddy-usage-${slug}`) ?? "0"));
-    setLimit(GUEST_LIMIT);
+    setLimit(getAdminLimit(slug, false) ?? GUEST_LIMIT);
   }, [slug]);
 
   function consume() {
@@ -184,7 +185,8 @@ function useUsageGate(slug: string): UsageGate {
       return true;
     }
 
-    if (used >= GUEST_LIMIT) {
+    const guestLimit = getAdminLimit(slug, false) ?? GUEST_LIMIT;
+    if (used >= guestLimit) {
       window.location.href = "/login";
       return false;
     }

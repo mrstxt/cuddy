@@ -6,28 +6,38 @@ import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { TrustCards } from "@/components/TrustCards";
 import { useLanguage } from "@/components/useLanguage";
 import { categoryText, localizeTool } from "@/lib/i18n";
+import { applyAdminToolOverride, getAdminState, isToolEnabled } from "@/lib/admin-state";
 import { getCurrentUser, getToolUsage, type DemoUser } from "@/lib/auth";
-import { getToolsByCategory, orderedCategories, tools } from "@/lib/tools";
+import { orderedCategories, tools } from "@/lib/tools";
 
 export default function Home() {
   const { language, t } = useLanguage();
   const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
+  const [adminVersion, setAdminVersion] = useState(0);
+
+  const adminState = getAdminState();
+  const visibleTools = tools.filter((tool) => isToolEnabled(tool.slug, adminState)).map((tool) => applyAdminToolOverride(tool, adminState));
 
   useEffect(() => {
     function syncProfile() {
       setCurrentUser(getCurrentUser());
+      setAdminVersion((version) => version + 1);
     }
     syncProfile();
     window.addEventListener("cuddy-auth-change", syncProfile);
+    window.addEventListener("cuddy-admin-state-change", syncProfile);
     window.addEventListener("focus", syncProfile);
     return () => {
       window.removeEventListener("cuddy-auth-change", syncProfile);
+      window.removeEventListener("cuddy-admin-state-change", syncProfile);
       window.removeEventListener("focus", syncProfile);
     };
   }, []);
 
+  void adminVersion;
+
   const usageByTool = currentUser
-    ? Object.fromEntries(tools.map((tool) => [tool.slug, getToolUsage(currentUser.id, tool.slug)]))
+    ? Object.fromEntries(visibleTools.map((tool) => [tool.slug, getToolUsage(currentUser.id, tool.slug)]))
     : {};
 
   return (
@@ -51,20 +61,21 @@ export default function Home() {
               >
                 {t("viewTools")} <ArrowRight size={17} />
               </Link>
-              <Link
-                href="/login"
-                className="rounded-full border border-ink/15 bg-white px-5 py-3 text-sm font-black uppercase text-ink shadow-sm hover:bg-mint"
-              >
-                {t("login")}
-              </Link>
+              {!currentUser ? (
+                <Link
+                  href="/login"
+                  className="rounded-full border border-ink/15 bg-white px-5 py-3 text-sm font-black uppercase text-ink shadow-sm hover:bg-mint"
+                >
+                  {t("login")}
+                </Link>
+              ) : null}
             </div>
           </div>
 
           <div className="rounded-[32px] border border-black/10 bg-white/75 p-3 shadow-soft backdrop-blur">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3">
-              {tools.slice(0, 5).map((tool, index) => {
+              {visibleTools.slice(0, 5).map((tool, index) => {
                 const displayTool = localizeTool(tool, language);
-                const usage = usageByTool[tool.slug];
                 const Icon = tool.icon;
                 return (
                   <Link
@@ -85,7 +96,6 @@ export default function Home() {
                     <span className={`mt-4 inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-sm font-black ${tool.accent.pill}`}>
                       {displayTool.action}
                     </span>
-                    {usage ? <LimitBadge used={usage.used} limit={usage.limit} /> : null}
                   </Link>
                 );
               })}
@@ -109,12 +119,12 @@ export default function Home() {
                 </p>
               </div>
               <span className="w-fit rounded-full bg-mint px-3 py-2 text-xs font-black uppercase text-ink shadow-glow">
-                {tools.length} functions
+                {visibleTools.length} functions
               </span>
             </div>
 
             {orderedCategories
-              .filter((category) => getToolsByCategory(category).length > 0)
+              .filter((category) => visibleTools.some((tool) => tool.category === category))
               .map((category) => (
                 <div key={category} id={category.toLowerCase()} className="scroll-mt-24 py-6 first:pt-0">
                   <div className="mb-4">
@@ -123,7 +133,7 @@ export default function Home() {
                     <p className="mt-1 text-sm leading-6 text-ink/65">{categoryText[language][category].description}</p>
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
-                    {getToolsByCategory(category).map((tool) => {
+                    {visibleTools.filter((tool) => tool.category === category).map((tool) => {
                       const displayTool = localizeTool(tool, language);
                       const usage = usageByTool[tool.slug];
                       const Icon = tool.icon;
