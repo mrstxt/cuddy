@@ -1,0 +1,8 @@
+<svg width="640" height="180" viewBox="0 0 640 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Cuddy Pro</title>
+  <desc id="desc">Simple Cuddy Pro wordmark with charcoal text and neon lime Pro label.</desc>
+  <rect width="640" height="180" rx="28" fill="#FFFFFF"/>
+  <text x="44" y="116" fill="#343434" font-family="Blogh Trial, Arial, Helvetica, sans-serif" font-size="76" font-weight="900">CUDDY</text>
+  <rect x="340" y="49" width="178" height="84" rx="24" fill="#B6FF00"/>
+  <text x="370" y="112" fill="#343434" font-family="Blogh Trial, Arial, Helvetica, sans-serif" font-size="58" font-weight="900">PRO</text>
+</svg>

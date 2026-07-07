@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cuddy-pro-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-07",
+  "containers": [
+    {
+      "class_name": "CuddyApiContainer",
+      "image": "../../backend/Dockerfile",
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "CuddyApiContainer",
+        "name": "CUDDY_API"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CuddyApiContainer"]
+    }
+  ],
+  "vars": {
+    "FRONTEND_ORIGIN": "https://cuddypro.com",
+    "FRONTEND_ORIGINS": "https://cuddypro.com",
+    "OPENAI_MODEL": "gpt-4.1-mini"
+  }
+}
