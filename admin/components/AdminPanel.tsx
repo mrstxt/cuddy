@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Download, KeyRound, RotateCcw, Save, Settings2 } from "lucide-react";
-import { tools } from "@/lib/tools";
 
 type AdminTab = "tools" | "site" | "privacy";
 
@@ -43,16 +42,65 @@ const ADMIN_STORAGE_KEY = "cuddy-admin-state";
 const ADMIN_AUTH_KEY = "cuddy-admin-auth";
 const ADMIN_CODE = "cuddy-pro";
 
-const defaultState: AdminState = {
-  tools: tools.map((tool) => ({
-    slug: tool.slug,
-    name: tool.name,
-    description: tool.description,
-    outcome: tool.outcome,
-    action: tool.action,
-    category: tool.category,
+const defaultTools: EditableTool[] = [
+  {
+    slug: "code-screenshot",
+    name: "Code Screenshot Generator",
+    description: "Kod bloklarini chiroyli fon, tema va eksport bilan rasmga aylantiring.",
+    outcome: "Koddan tayyor PNG skrinshot olasiz.",
+    action: "Kod joylash",
+    category: "Developer",
     enabled: true
-  })),
+  },
+  {
+    slug: "qr-generator",
+    name: "QR-kod Generator",
+    description: "Link yoki matndan tezkor QR-kod yarating va PNG qilib yuklab oling.",
+    outcome: "Link yoki matn bir zumda QR-kodga aylanadi.",
+    action: "QR yaratish",
+    category: "Developer",
+    enabled: true
+  },
+  {
+    slug: "code-translator",
+    name: "Code Translator",
+    description: "Kod bo'lagini boshqa tilga o'tkazing, xatolarini tekshiring va qisqa tushuntirish oling.",
+    outcome: "150 qatorgacha kod tarjima qilinadi yoki xatosi tekshiriladi.",
+    action: "Kod tarjima qilish",
+    category: "AI",
+    enabled: true
+  },
+  {
+    slug: "text-to-pdf",
+    name: "Text / Word to PDF",
+    description: "Oddiy matn yoki Word'dan ko'chirilgan kontentni PDF ko'rinishida tayyorlang.",
+    outcome: "Matn PDF qilib saqlashga tayyorlanadi.",
+    action: "PDF qilish",
+    category: "Office",
+    enabled: true
+  },
+  {
+    slug: "image-to-pdf",
+    name: "Image to PDF",
+    description: "Rasmni to'liq sahifaga moslab PDF qilib chiqarish uchun tayyorlang.",
+    outcome: "Rasm PDF sahifasiga moslab joylanadi.",
+    action: "Rasmni PDF",
+    category: "Office",
+    enabled: true
+  },
+  {
+    slug: "csv-excel-tool",
+    name: "CSV / Excel Helper",
+    description: "Excel'dan ko'chirilgan jadvalni tozalang, preview qiling va CSV qilib yuklab oling.",
+    outcome: "Jadval CSV fayl sifatida eksport qilinadi.",
+    action: "Jadval ishlash",
+    category: "Office",
+    enabled: true
+  }
+];
+
+const defaultState: AdminState = {
+  tools: defaultTools,
   site: {
     heroTitle: "Dizayner va dasturchilar uchun tartibli ishchi panel.",
     heroBody:

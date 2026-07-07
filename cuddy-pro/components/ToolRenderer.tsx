@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import * as CryptoJS from "crypto-js";
-import { Copy, Download, Play, Repeat2, Scissors, ShieldCheck, Wand2 } from "lucide-react";
+import { Copy, Download, FileText, Play, Printer, Repeat2, Scissors, ShieldCheck, Wand2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 
@@ -65,6 +65,39 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function openPrintableDocument(title: string, body: string) {
+  const popup = window.open("", "_blank", "noopener,noreferrer,width=920,height=720");
+  if (!popup) return;
+
+  popup.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>${escapeHtml(title)}</title>
+    <style>
+      @page { size: A4; margin: 18mm; }
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; color: #202020; }
+      .page { min-height: 100vh; display: grid; align-content: start; gap: 18px; }
+      h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+      pre { white-space: pre-wrap; font: inherit; line-height: 1.7; margin: 0; }
+      img { width: 100%; height: auto; max-height: 92vh; object-fit: contain; }
+    </style>
+  </head>
+  <body>${body}</body>
+</html>`);
+  popup.document.close();
+  popup.focus();
+  popup.print();
+}
+
 const inputClass =
   "w-full rounded-[20px] border border-black/10 bg-white/88 px-4 py-3 text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
 const selectClass =
@@ -95,6 +128,9 @@ export default function ToolRenderer({ slug }: Props) {
       {slug === "bg-remover" ? <BackgroundRemoverTool gate={gate} /> : null}
       {slug === "photo-enhancer" ? <PhotoEnhancerTool gate={gate} /> : null}
       {slug === "code-translator" ? <CodeTranslatorTool gate={gate} /> : null}
+      {slug === "text-to-pdf" ? <TextToPdfTool gate={gate} /> : null}
+      {slug === "image-to-pdf" ? <ImageToPdfTool gate={gate} /> : null}
+      {slug === "csv-excel-tool" ? <CsvExcelTool gate={gate} /> : null}
     </div>
   );
 }
@@ -643,6 +679,145 @@ function PhotoEnhancerTool({ gate }: { gate: UsageGate }) {
   );
 }
 
+function TextToPdfTool({ gate }: { gate: UsageGate }) {
+  const [title, setTitle] = useState("Cuddy Pro hujjat");
+  const [content, setContent] = useState("Bu yerga Word yoki oddiy matndan ko'chirilgan kontentni joylang.");
+
+  function printPdf() {
+    if (!gate.consume()) return;
+    openPrintableDocument(
+      title,
+      `<main class="page"><h1>${escapeHtml(title)}</h1><pre>${escapeHtml(content)}</pre></main>`
+    );
+  }
+
+  return (
+    <Panel>
+      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-ink">Hujjat nomi</span>
+            <input className={inputClass} value={title} onChange={(event) => setTitle(event.target.value)} />
+          </label>
+          <Field label="Matn / Word kontent" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-72" />
+          <Button onClick={printPdf} className="inline-flex w-fit items-center gap-2">
+            <Printer size={16} /> PDF qilib saqlash
+          </Button>
+        </div>
+        <div className="rounded-[28px] border border-black/10 bg-panel p-5">
+          <span className="text-xs font-black uppercase text-ink/45">Preview</span>
+          <div className="mt-3 min-h-96 rounded-[24px] bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-black text-ink">{title}</h2>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-ink/72">{content}</p>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function ImageToPdfTool({ gate }: { gate: UsageGate }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [fit, setFit] = useState<"contain" | "cover">("contain");
+
+  useEffect(() => {
+    if (!file) {
+      setPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  function printPdf() {
+    if (!gate.consume()) return;
+    if (!preview) return;
+    openPrintableDocument(
+      "image-to-pdf",
+      `<main class="page"><img style="object-fit:${fit}" src="${preview}" alt="Image to PDF" /></main>`
+    );
+  }
+
+  return (
+    <Panel>
+      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid content-start gap-4">
+          <input type="file" accept="image/png,image/jpeg,image/webp" className={fileInputClass} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <label>
+            <span className="mb-2 block text-sm font-bold text-ink">Sahifaga joylash</span>
+            <select className={selectClass} value={fit} onChange={(event) => setFit(event.target.value as "contain" | "cover")}>
+              <option value="contain">To'liq ko'rinsin</option>
+              <option value="cover">Sahifani to'ldirsin</option>
+            </select>
+          </label>
+          <Button disabled={!preview} onClick={printPdf} className="inline-flex w-fit items-center gap-2">
+            <FileText size={16} /> Rasmni PDF qilish
+          </Button>
+        </div>
+        <div className="rounded-[28px] border border-black/10 bg-panel p-5">
+          <span className="text-xs font-black uppercase text-ink/45">Preview</span>
+          <div className="mt-3 grid min-h-96 place-items-center rounded-[24px] bg-white p-4 shadow-sm">
+            {preview ? <img src={preview} alt="PDF preview" className={`max-h-96 w-full rounded-[20px] ${fit === "cover" ? "object-cover" : "object-contain"}`} /> : <span className="text-sm font-bold text-ink/45">Rasm tanlang</span>}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function CsvExcelTool({ gate }: { gate: UsageGate }) {
+  const [input, setInput] = useState("Name\tRole\nCuddy\tToolbox\nAdmin\tPanel");
+  const rows = input
+    .split("\n")
+    .filter(Boolean)
+    .map((row) => row.split(row.includes("\t") ? "\t" : ",").map((cell) => cell.trim()));
+
+  function exportCsv() {
+    if (!gate.consume()) return;
+    const csv = rows
+      .map((row) =>
+        row
+          .map((cell) => {
+            const escaped = cell.replaceAll('"', '""');
+            return `"${escaped}"`;
+          })
+          .join(",")
+      )
+      .join("\n");
+    downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), "cuddy-table.csv");
+  }
+
+  return (
+    <Panel>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-4">
+          <Field label="Excel / CSV matni" value={input} onChange={(event) => setInput(event.target.value)} className="min-h-72" />
+          <Button onClick={exportCsv} className="inline-flex w-fit items-center gap-2">
+            <Download size={16} /> CSV yuklash
+          </Button>
+        </div>
+        <div className="overflow-auto rounded-[28px] border border-black/10 bg-panel p-4">
+          <table className="min-w-full border-separate border-spacing-2 text-left text-sm">
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`${row.join("-")}-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${cell}-${cellIndex}`} className={`rounded-[16px] px-4 py-3 ${rowIndex === 0 ? "bg-ink font-black text-mint" : "bg-white text-ink/72"}`}>
+                      {cell || "-"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function CodeTranslatorTool({ gate }: { gate: UsageGate }) {
   const [source, setSource] = useState("JavaScript");
   const [target, setTarget] = useState("Python");
@@ -650,16 +825,22 @@ function CodeTranslatorTool({ gate }: { gate: UsageGate }) {
   const [result, setResult] = useState("");
   const [status, setStatus] = useState("");
   const [mode, setMode] = useState<"translate" | "check">("translate");
+  const codeLineCount = code.split("\n").filter((line) => line.trim()).length;
+  const overLimit = codeLineCount > 150;
 
   async function translate() {
     if (!gate.consume()) return;
+    if (overLimit) {
+      setStatus(`Kod 150 qatordan oshmasligi kerak. Hozir: ${codeLineCount} qator.`);
+      return;
+    }
     setStatus("Tarjima qilinmoqda...");
     setMode("translate");
     setResult("");
     const response = await fetch(`${API_BASE_URL}/api/code-translator`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source, target, code })
+      body: JSON.stringify({ source, target, code, explain: true, max_lines: 150 })
     });
     const data = (await response.json()) as { result?: string; error?: string; detail?: string };
     setResult(data.result ?? "");
@@ -668,13 +849,17 @@ function CodeTranslatorTool({ gate }: { gate: UsageGate }) {
 
   async function checkCode() {
     if (!gate.consume()) return;
+    if (overLimit) {
+      setStatus(`Kod 150 qatordan oshmasligi kerak. Hozir: ${codeLineCount} qator.`);
+      return;
+    }
     setStatus("Kod xatolari tekshirilmoqda...");
     setMode("check");
     setResult("");
     const response = await fetch(`${API_BASE_URL}/api/code-checker`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source, target, code })
+      body: JSON.stringify({ source, target, code, explain: true, max_lines: 150 })
     });
     const data = (await response.json().catch(() => null)) as { result?: string; error?: string; detail?: string } | null;
     setResult(data?.result ?? "");
@@ -728,6 +913,12 @@ function CodeTranslatorTool({ gate }: { gate: UsageGate }) {
             ))}
           </select>
         </label>
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[22px] bg-panel p-3 text-sm">
+        <span className={`rounded-full px-3 py-1 font-black ${overLimit ? "bg-[#fff1ed] text-tomato" : "bg-mint text-ink"}`}>
+          {codeLineCount}/150 qator
+        </span>
+        <span className="text-ink/65">Tarjima natijasida kod bilan birga qisqa tushuntirish ham chiqadi.</span>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="Kod" value={code} onChange={(event) => setCode(event.target.value)} />

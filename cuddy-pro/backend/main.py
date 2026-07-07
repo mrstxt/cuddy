@@ -35,6 +35,12 @@ class CodeTranslatePayload(BaseModel):
     source: str
     target: str
     code: str
+    explain: bool = True
+    max_lines: int = 150
+
+
+def count_code_lines(code: str) -> int:
+    return len([line for line in code.splitlines() if line.strip()])
 
 
 async def read_limited_upload(file: UploadFile, allowed_types: set[str]) -> bytes:
@@ -171,6 +177,11 @@ async def photo_enhancer(
 
 @app.post("/api/code-translator")
 async def code_translator(payload: CodeTranslatePayload) -> JSONResponse:
+    line_count = count_code_lines(payload.code)
+    max_lines = min(payload.max_lines, 150)
+    if line_count > max_lines:
+        raise HTTPException(status_code=400, detail=f"Kod {max_lines} qatordan oshmasligi kerak. Hozir: {line_count} qator.")
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return JSONResponse(
@@ -179,7 +190,10 @@ async def code_translator(payload: CodeTranslatePayload) -> JSONResponse:
                 "result": (
                     f"// Demo mode: {payload.source} -> {payload.target}\n"
                     "// API key qo'shilgach, bu yerda tarjima natijasi chiqadi.\n\n"
-                    f"{payload.code}"
+                    f"{payload.code}\n\n"
+                    "Qisqa tushuntirish:\n"
+                    "- Kod 150 qator limit ichida qabul qilindi.\n"
+                    "- Real rejimda tarjima qilingan kod va qisqa izoh qaytadi."
                 ),
             }
         )
@@ -190,13 +204,19 @@ async def code_translator(payload: CodeTranslatePayload) -> JSONResponse:
             {
                 "role": "system",
                 "content": (
-                    "You translate code between programming languages. Return only the translated code, "
-                    "with brief comments only when necessary for correctness."
+                    "You translate code between programming languages. The input is limited to 150 non-empty lines. "
+                    "Respond in Uzbek with two concise sections: 'Tarjima qilingan kod' and 'Qisqa tushuntirish'. "
+                    "Keep the explanation short, practical, and focused on important language differences."
                 ),
             },
             {
                 "role": "user",
-                "content": f"Translate this {payload.source} code to {payload.target}:\n\n{payload.code}",
+                "content": (
+                    f"Translate this {payload.source} code to {payload.target}.\n"
+                    f"Line count: {line_count}/{max_lines}.\n"
+                    f"Brief explanation required: {payload.explain}.\n\n"
+                    f"{payload.code}"
+                ),
             },
         ],
     }
@@ -226,6 +246,11 @@ async def code_translator(payload: CodeTranslatePayload) -> JSONResponse:
 
 @app.post("/api/code-checker")
 async def code_checker(payload: CodeTranslatePayload) -> JSONResponse:
+    line_count = count_code_lines(payload.code)
+    max_lines = min(payload.max_lines, 150)
+    if line_count > max_lines:
+        raise HTTPException(status_code=400, detail=f"Kod {max_lines} qatordan oshmasligi kerak. Hozir: {line_count} qator.")
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return JSONResponse(

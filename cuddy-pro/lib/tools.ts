@@ -2,6 +2,8 @@ import {
   Braces,
   Code2,
   FileCode2,
+  FileSpreadsheet,
+  FileText,
   ImageDown,
   ImageUp,
   KeyRound,
@@ -11,7 +13,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 
-export type ToolCategory = "Design" | "Developer" | "Image" | "AI";
+export type ToolCategory = "Design" | "Developer" | "Image" | "Office" | "AI";
 
 export type Tool = {
   slug: string;
@@ -53,6 +55,11 @@ export const categoryDetails: Record<
     shortLabel: "Image",
     description: "Rasmni siqish, formatlash va sifatini oshirish uchun tool'lar."
   },
+  Office: {
+    label: "Office Tools",
+    shortLabel: "Office",
+    description: "Word, PDF, Excel va hujjat ishlarini tezlashtiradigan vositalar."
+  },
   AI: {
     label: "AI Tools",
     shortLabel: "AI",
@@ -60,7 +67,7 @@ export const categoryDetails: Record<
   }
 };
 
-export const orderedCategories: ToolCategory[] = ["Developer", "Image", "AI", "Design"];
+export const orderedCategories: ToolCategory[] = ["Developer", "Office", "Image", "AI", "Design"];
 
 export const tools: Tool[] = [
   {
@@ -205,6 +212,54 @@ export const tools: Tool[] = [
       icon: "bg-[#334155] text-white",
       pill: "bg-[#e2e8f0] text-[#0f172a]",
       outcome: "bg-[#e2e8f0] text-[#0f172a]"
+    }
+  },
+  {
+    slug: "text-to-pdf",
+    name: "Text / Word to PDF",
+    description: "Oddiy matn yoki Word'dan ko'chirilgan kontentni PDF ko'rinishida tayyorlang.",
+    outcome: "Matn chiroyli hujjat sahifasiga joylanadi va browser orqali PDF qilib saqlanadi.",
+    action: "PDF qilish",
+    category: "Office",
+    frontendOnly: true,
+    icon: FileText,
+    accent: {
+      card: "bg-[linear-gradient(145deg,#f7ffdb_0%,#d9f99d_100%)]",
+      icon: "bg-ink text-mint",
+      pill: "bg-[#ecfccb] text-[#365314]",
+      outcome: "bg-[#ecfccb] text-[#365314]"
+    }
+  },
+  {
+    slug: "image-to-pdf",
+    name: "Image to PDF",
+    description: "Rasmni to'liq sahifaga moslab PDF qilib chiqarish uchun tayyorlang.",
+    outcome: "JPG, PNG yoki WebP rasm PDF sahifasiga moslab joylanadi.",
+    action: "Rasmni PDF",
+    category: "Office",
+    frontendOnly: true,
+    icon: FileText,
+    accent: {
+      card: "bg-[linear-gradient(145deg,#eef5ff_0%,#bfdbfe_100%)]",
+      icon: "bg-[#1f6feb] text-white",
+      pill: "bg-[#dbeafe] text-[#143d79]",
+      outcome: "bg-[#dbeafe] text-[#143d79]"
+    }
+  },
+  {
+    slug: "csv-excel-tool",
+    name: "CSV / Excel Helper",
+    description: "Excel'dan ko'chirilgan jadvalni tozalang, preview qiling va CSV qilib yuklab oling.",
+    outcome: "Jadval ustun va qatorlarga ajraladi, CSV fayl sifatida eksport qilinadi.",
+    action: "Jadval ishlash",
+    category: "Office",
+    frontendOnly: true,
+    icon: FileSpreadsheet,
+    accent: {
+      card: "bg-[linear-gradient(145deg,#f0fdf4_0%,#bbf7d0_100%)]",
+      icon: "bg-[#15803d] text-white",
+      pill: "bg-[#dcfce7] text-[#14532d]",
+      outcome: "bg-[#dcfce7] text-[#14532d]"
     }
   }
 ];
