@@ -35,6 +35,10 @@ function saveUsers(users: DemoUser[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+function notifyAuthChange() {
+  window.dispatchEvent(new CustomEvent("cuddy-auth-change"));
+}
+
 export function getCurrentUser(): DemoUser | null {
   if (typeof window === "undefined") return null;
   const userId = localStorage.getItem(SESSION_KEY);
@@ -52,6 +56,7 @@ export function registerUser(name: string, email: string, password: string): Dem
     }
     localStorage.setItem(SESSION_KEY, existingUser.id);
     localStorage.setItem("cuddy-auth", "true");
+    notifyAuthChange();
     return existingUser;
   }
 
@@ -65,6 +70,7 @@ export function registerUser(name: string, email: string, password: string): Dem
   saveUsers([...users, user]);
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
+  notifyAuthChange();
   return user;
 }
 
@@ -76,12 +82,14 @@ export function loginUser(email: string, password: string): DemoUser {
   }
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
+  notifyAuthChange();
   return user;
 }
 
 export function logoutUser() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem("cuddy-auth");
+  notifyAuthChange();
 }
 
 export function getUsageKey(userId: string) {

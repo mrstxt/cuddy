@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, KeyRound, RotateCcw, Save, Settings2 } from "lucide-react";
+import { BarChart3, Download, KeyRound, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
 
-type AdminTab = "tools" | "site" | "privacy";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy";
 
 type EditableTool = {
   slug: string;
@@ -13,6 +13,13 @@ type EditableTool = {
   action: string;
   category: string;
   enabled: boolean;
+};
+
+type ToolLimit = {
+  slug: string;
+  period: "daily" | "weekly";
+  limit: number;
+  registeredLimit: number;
 };
 
 type SiteContent = {
@@ -34,6 +41,7 @@ type PrivacyContent = {
 
 type AdminState = {
   tools: EditableTool[];
+  limits: ToolLimit[];
   site: SiteContent;
   privacy: PrivacyContent;
 };
@@ -62,12 +70,66 @@ const defaultTools: EditableTool[] = [
     enabled: true
   },
   {
+    slug: "json-formatter",
+    name: "JSON Formatter & Validator",
+    description: "JSON xatolarini toping, formatlang va minify qiling.",
+    outcome: "JSON xatosi, validligi va chiroyli formati ko'rinadi.",
+    action: "JSON tekshirish",
+    category: "Developer",
+    enabled: true
+  },
+  {
+    slug: "base64-tool",
+    name: "Base64 / URL Encoder",
+    description: "Base64 va URL encode/decode ishlarini brauzerning o'zida bajaring.",
+    outcome: "Matnni encode yoki decode qilib darhol natija olasiz.",
+    action: "Encode/Decode",
+    category: "Developer",
+    enabled: true
+  },
+  {
+    slug: "hash-generator",
+    name: "Hash Generator",
+    description: "MD5, SHA-1 va SHA-256 hash qiymatlarini yarating.",
+    outcome: "Matndan MD5, SHA-1 va SHA-256 hashlar chiqadi.",
+    action: "Hash olish",
+    category: "Developer",
+    enabled: true
+  },
+  {
     slug: "code-translator",
     name: "Code Translator",
     description: "Kod bo'lagini boshqa tilga o'tkazing, xatolarini tekshiring va qisqa tushuntirish oling.",
     outcome: "150 qatorgacha kod tarjima qilinadi yoki xatosi tekshiriladi.",
     action: "Kod tarjima qilish",
-    category: "AI",
+    category: "Developer",
+    enabled: true
+  },
+  {
+    slug: "image-compressor",
+    name: "Image Compressor",
+    description: "Rasmlarni siqing va JPG, PNG yoki WebP formatiga eksport qiling.",
+    outcome: "Rasm hajmi kamayadi va kerakli formatga o'tadi.",
+    action: "Rasm siqish",
+    category: "Image",
+    enabled: true
+  },
+  {
+    slug: "bg-remover",
+    name: "Background Remover",
+    description: "Rasm fonini tez va sifatli olib tashlang.",
+    outcome: "Rasm foni olib tashlanadi, transparent natija olinadi.",
+    action: "Fonni olib tashlash",
+    category: "Image",
+    enabled: true
+  },
+  {
+    slug: "photo-enhancer",
+    name: "Photo Enhancer",
+    description: "Rasm sifatini oshiring, tiniqlashtiring va kattalashtiring.",
+    outcome: "Past sifatli rasm upscale/enhance qilinadi.",
+    action: "Sifat oshirish",
+    category: "Image",
     enabled: true
   },
   {
@@ -96,11 +158,35 @@ const defaultTools: EditableTool[] = [
     action: "Jadval ishlash",
     category: "Office",
     enabled: true
+  },
+  {
+    slug: "pdf-merge",
+    name: "PDF Merge",
+    description: "Bir nechta PDF faylni kerakli tartibda bitta PDF qilib birlashtiring.",
+    outcome: "PDFlar ketma-ket tartiblanadi va bitta yakuniy PDF faylga aylanadi.",
+    action: "PDF birlashtirish",
+    category: "Office",
+    enabled: true
+  },
+  {
+    slug: "pdf-compressor",
+    name: "PDF Compressor",
+    description: "PDF faylni qayta optimallashtirib, hajmini kamaytirishga urinib ko'ring.",
+    outcome: "PDF qayta saqlanadi, object stream optimizatsiyasi orqali hajm qisqarishi mumkin.",
+    action: "PDF siqish",
+    category: "Office",
+    enabled: true
   }
 ];
 
 const defaultState: AdminState = {
   tools: defaultTools,
+  limits: defaultTools.map((tool) => ({
+    slug: tool.slug,
+    period: "daily",
+    limit: 3,
+    registeredLimit: 25
+  })),
   site: {
     heroTitle: "Dizayner va dasturchilar uchun tartibli ishchi panel.",
     heroBody:
@@ -125,7 +211,7 @@ const defaultState: AdminState = {
 export function AdminPanel() {
   const [authorized, setAuthorized] = useState(false);
   const [code, setCode] = useState("");
-  const [tab, setTab] = useState<AdminTab>("tools");
+  const [tab, setTab] = useState<AdminTab>("analytics");
   const [state, setState] = useState<AdminState>(defaultState);
   const [savedAt, setSavedAt] = useState("");
 
@@ -146,7 +232,7 @@ export function AdminPanel() {
     () => [
       { label: "Tool", value: state.tools.length },
       { label: "Faol", value: state.tools.filter((tool) => tool.enabled).length },
-      { label: "Kategoriya", value: new Set(state.tools.map((tool) => tool.category)).size }
+      { label: "Limit to'siq", value: getAnalyticsRows(state.tools).reduce((sum, row) => sum + row.blocked, 0) }
     ],
     [state.tools]
   );
@@ -183,6 +269,13 @@ export function AdminPanel() {
     setState((current) => ({
       ...current,
       tools: current.tools.map((tool, toolIndex) => (toolIndex === index ? { ...tool, ...patch } : tool))
+    }));
+  }
+
+  function updateLimit(index: number, patch: Partial<ToolLimit>) {
+    setState((current) => ({
+      ...current,
+      limits: current.limits.map((limit, limitIndex) => (limitIndex === index ? { ...limit, ...patch } : limit))
     }));
   }
 
@@ -257,6 +350,8 @@ export function AdminPanel() {
         <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="h-fit rounded-[28px] bg-panel p-2">
             {[
+              { id: "analytics" as const, label: "Analitika", icon: BarChart3 },
+              { id: "limits" as const, label: "Limitlar", icon: SlidersHorizontal },
               { id: "tools" as const, label: "Tool'lar" },
               { id: "site" as const, label: "Sayt matnlari" },
               { id: "privacy" as const, label: "Maxfiylik" }
@@ -269,13 +364,15 @@ export function AdminPanel() {
                 type="button"
                 onClick={() => setTab(item.id)}
               >
-                <Settings2 size={16} /> {item.label}
+                {item.icon ? <item.icon size={16} /> : <Settings2 size={16} />} {item.label}
               </button>
             ))}
             {savedAt ? <p className="px-4 py-3 text-xs font-bold text-ink/45">Oxirgi holat: {savedAt}</p> : null}
           </aside>
 
           <section className="min-w-0">
+            {tab === "analytics" ? <AnalyticsPanel tools={state.tools} limits={state.limits} /> : null}
+            {tab === "limits" ? <LimitEditor tools={state.tools} limits={state.limits} updateLimit={updateLimit} /> : null}
             {tab === "tools" ? <ToolsEditor tools={state.tools} updateTool={updateTool} /> : null}
             {tab === "site" ? (
               <SiteEditor site={state.site} setSite={(site) => setState((current) => ({ ...current, site }))} />
@@ -287,6 +384,123 @@ export function AdminPanel() {
         </div>
       </section>
     </main>
+  );
+}
+
+function getAnalyticsRows(tools: EditableTool[]) {
+  return tools.map((tool, index) => ({
+    slug: tool.slug,
+    name: tool.name,
+    enabled: tool.enabled,
+    registeredUsers: 18 + index * 3,
+    demoUsers: 42 + index * 5,
+    usage: 120 + index * 37,
+    blocked: index % 3 === 0 ? 8 + index : 2 + index,
+    trend: index % 2 === 0 ? "yuqori" : "barqaror"
+  }));
+}
+
+function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: ToolLimit[] }) {
+  const rows = getAnalyticsRows(tools);
+  const registeredTotal = rows.reduce((sum, row) => sum + row.registeredUsers, 0);
+  const demoTotal = rows.reduce((sum, row) => sum + row.demoUsers, 0);
+  const blockedTotal = rows.reduce((sum, row) => sum + row.blocked, 0);
+  const topTool = [...rows].sort((a, b) => b.usage - a.usage)[0];
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <AnalyticsStat label="Ro'yxatdan o'tganlar" value={registeredTotal} />
+        <AnalyticsStat label="Demo mehmonlar" value={demoTotal} />
+        <AnalyticsStat label="Limit to'siqlari" value={blockedTotal} />
+        <AnalyticsStat label="Eng talabgir" value={topTool?.name ?? "-"} />
+      </div>
+      <div className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+        <h2 className="text-xl font-black text-ink">Tool talab va limit analitikasi</h2>
+        <p className="mt-1 text-sm leading-6 text-ink/60">
+          Demo panel: production’da bu qiymatlar backend eventlari va database orqali real vaqtda to'planadi.
+        </p>
+        <div className="mt-4 grid gap-3">
+          {rows.map((row) => {
+            const limit = limits.find((item) => item.slug === row.slug);
+            const demandPercent = Math.min(100, row.usage / 4);
+            return (
+              <article key={row.slug} className="rounded-[24px] bg-panel p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <strong className="text-ink">{row.name}</strong>
+                    <p className="text-sm text-ink/55">
+                      Registered: {row.registeredUsers} | Demo: {row.demoUsers} | Blocked: {row.blocked}
+                    </p>
+                  </div>
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${row.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
+                    {row.enabled ? "Faol" : "Yopiq"}
+                  </span>
+                </div>
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
+                  <div className="h-full rounded-full bg-ink" style={{ width: `${demandPercent}%` }} />
+                </div>
+                <p className="mt-2 text-xs font-bold text-ink/55">
+                  Limit: {limit?.limit ?? 3}/{limit?.period ?? "daily"} guest, {limit?.registeredLimit ?? 25} registered.
+                  {row.blocked > 8 ? " Limitni oshirish tavsiya qilinadi." : " Limit normal."}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-[26px] bg-ink p-5 text-white">
+      <strong className="block text-2xl font-black text-mint">{value}</strong>
+      <span className="mt-1 block text-sm text-white/70">{label}</span>
+    </div>
+  );
+}
+
+function LimitEditor({
+  tools,
+  limits,
+  updateLimit
+}: {
+  tools: EditableTool[];
+  limits: ToolLimit[];
+  updateLimit: (index: number, patch: Partial<ToolLimit>) => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      {limits.map((limit, index) => {
+        const tool = tools.find((item) => item.slug === limit.slug);
+        return (
+          <article key={limit.slug} className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+            <div className="mb-4">
+              <span className="text-xs font-black uppercase text-ink/40">{limit.slug}</span>
+              <h2 className="text-xl font-black text-ink">{tool?.name ?? limit.slug}</h2>
+              <p className="mt-1 text-sm text-ink/60">Kunlik yoki haftalik limitlarni boshqarish.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="block">
+                <span className="mb-2 block text-sm font-black text-ink">Davr</span>
+                <select
+                  className="w-full rounded-[20px] border border-black/10 bg-panel px-4 py-3 text-sm text-ink shadow-inner outline-none focus:border-mint focus:bg-white"
+                  value={limit.period}
+                  onChange={(event) => updateLimit(index, { period: event.target.value as "daily" | "weekly" })}
+                >
+                  <option value="daily">Kunlik</option>
+                  <option value="weekly">Haftalik</option>
+                </select>
+              </label>
+              <AdminInput label="Guest limit" value={String(limit.limit)} onChange={(value) => updateLimit(index, { limit: Number(value) || 0 })} />
+              <AdminInput label="Registered limit" value={String(limit.registeredLimit)} onChange={(value) => updateLimit(index, { registeredLimit: Number(value) || 0 })} />
+            </div>
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -308,7 +522,7 @@ function ToolsEditor({
             </div>
             <label className="flex w-fit items-center gap-2 rounded-full bg-panel px-4 py-2 text-sm font-black text-ink">
               <input checked={tool.enabled} type="checkbox" onChange={(event) => updateTool(index, { enabled: event.target.checked })} />
-              Faol
+              {tool.enabled ? "Faol" : "Vaqtincha yopiq"}
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-2">

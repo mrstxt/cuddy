@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import { loginUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
+import { getCurrentUser, loginUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +13,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState("demo@cuddy.pro");
   const [password, setPassword] = useState("demo12345");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (getCurrentUser()) {
+      router.replace("/profile");
+    }
+  }, [router]);
 
   function submit() {
     try {

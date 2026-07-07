@@ -1,14 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { TrustCards } from "@/components/TrustCards";
 import { useLanguage } from "@/components/useLanguage";
 import { categoryText, localizeTool } from "@/lib/i18n";
+import { getCurrentUser, getToolUsage, type DemoUser } from "@/lib/auth";
 import { getToolsByCategory, orderedCategories, tools } from "@/lib/tools";
 
 export default function Home() {
   const { language, t } = useLanguage();
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
+
+  useEffect(() => {
+    function syncProfile() {
+      setCurrentUser(getCurrentUser());
+    }
+    syncProfile();
+    window.addEventListener("cuddy-auth-change", syncProfile);
+    window.addEventListener("focus", syncProfile);
+    return () => {
+      window.removeEventListener("cuddy-auth-change", syncProfile);
+      window.removeEventListener("focus", syncProfile);
+    };
+  }, []);
+
+  const usageByTool = currentUser
+    ? Object.fromEntries(tools.map((tool) => [tool.slug, getToolUsage(currentUser.id, tool.slug)]))
+    : {};
 
   return (
     <main>
@@ -44,6 +64,7 @@ export default function Home() {
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3">
               {tools.slice(0, 5).map((tool, index) => {
                 const displayTool = localizeTool(tool, language);
+                const usage = usageByTool[tool.slug];
                 const Icon = tool.icon;
                 return (
                   <Link
@@ -64,6 +85,7 @@ export default function Home() {
                     <span className={`mt-4 inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-sm font-black ${tool.accent.pill}`}>
                       {displayTool.action}
                     </span>
+                    {usage ? <LimitBadge used={usage.used} limit={usage.limit} /> : null}
                   </Link>
                 );
               })}
@@ -103,6 +125,7 @@ export default function Home() {
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
                     {getToolsByCategory(category).map((tool) => {
                       const displayTool = localizeTool(tool, language);
+                      const usage = usageByTool[tool.slug];
                       const Icon = tool.icon;
                       return (
                         <Link
@@ -127,6 +150,7 @@ export default function Home() {
                           <span className="mt-auto inline-flex w-fit items-center gap-2 pt-5 text-xs font-black uppercase text-ink">
                             {displayTool.action} <ArrowRight size={14} className="transition group-hover:translate-x-1" />
                           </span>
+                          {usage ? <LimitBadge used={usage.used} limit={usage.limit} /> : null}
                         </Link>
                       );
                     })}
@@ -136,5 +160,23 @@ export default function Home() {
         </div>
       </section>
     </main>
+  );
+}
+
+function LimitBadge({ used, limit }: { used: number; limit: number }) {
+  const percent = limit ? Math.min(100, (used / limit) * 100) : 0;
+
+  return (
+    <div className="mt-4 rounded-[18px] bg-white/70 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-black uppercase text-ink/60">
+        <span>Limit</span>
+        <span>
+          {used}/{limit}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white">
+        <div className="h-full rounded-full bg-ink" style={{ width: `${percent}%` }} />
+      </div>
+    </div>
   );
 }
