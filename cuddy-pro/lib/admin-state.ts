@@ -20,9 +20,25 @@ export type AdminToolLimit = {
 export type AdminState = {
   tools?: AdminToolOverride[];
   limits?: AdminToolLimit[];
+  site?: {
+    heroTitle?: string;
+    heroBody?: string;
+    primaryButton?: string;
+    secondaryButton?: string;
+    freeLimit?: string;
+  };
+  privacy?: {
+    localTitle?: string;
+    localBody?: string;
+    serverTitle?: string;
+    serverBody?: string;
+    limitTitle?: string;
+    limitBody?: string;
+  };
 };
 
 export const ADMIN_STORAGE_KEY = "cuddy-admin-state";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function getAdminState(): AdminState {
   if (typeof window === "undefined") return {};
@@ -30,6 +46,20 @@ export function getAdminState(): AdminState {
     return JSON.parse(localStorage.getItem(ADMIN_STORAGE_KEY) ?? "{}") as AdminState;
   } catch {
     return {};
+  }
+}
+
+export async function syncAdminStateFromBackend() {
+  if (typeof window === "undefined") return getAdminState();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/admin-state`, { cache: "no-store" });
+    if (!response.ok) return getAdminState();
+    const state = (await response.json()) as AdminState;
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(state));
+    window.dispatchEvent(new CustomEvent("cuddy-admin-state-change"));
+    return state;
+  } catch {
+    return getAdminState();
   }
 }
 

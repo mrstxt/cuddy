@@ -1,21 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Headphones, Send, X } from "lucide-react";
+import { Check, CheckCheck, Headphones, Send, X } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth";
 
 type SupportMessage = {
   id: string;
+  conversationId: string;
   from: "user" | "admin";
   text: string;
   createdAt: string;
+  status?: "sent" | "read";
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 };
 
 const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
 const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
+const SUPPORT_GUEST_KEY = "cuddy-support-guest";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const starterMessages: SupportMessage[] = [
   {
     id: "welcome",
+    conversationId: "global",
     from: "admin",
     text: "Salom! Cuddy Pro support. Savolingizni yozing, admin javobini shu chatda ko'rasiz.",
     createdAt: new Date().toISOString()
@@ -27,6 +38,34 @@ export function FloatingSupport() {
   const [unread, setUnread] = useState(1);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>(starterMessages);
+
+  function getCurrentConversationId() {
+    const user = getCurrentUser();
+    if (user) return user.id;
+    if (typeof window === "undefined") return "global";
+    return localStorage.getItem(SUPPORT_GUEST_KEY) ?? "global";
+  }
+
+  function getConversationProfile() {
+    const user = getCurrentUser();
+    if (user) {
+      return {
+        conversationId: user.id,
+        user: { id: user.id, name: user.name, email: user.email }
+      };
+    }
+
+    let guestId = localStorage.getItem(SUPPORT_GUEST_KEY);
+    if (!guestId) {
+      guestId = `guest-${Date.now()}`;
+      localStorage.setItem(SUPPORT_GUEST_KEY, guestId);
+    }
+
+    return {
+      conversationId: guestId,
+      user: { id: guestId, name: "Demo mehmon", email: "guest@cuddy.pro" }
+    };
+  }
 
   useEffect(() => {
     function syncSupport() {
@@ -40,11 +79,25 @@ export function FloatingSupport() {
       }
     }
 
+    function syncBackendSupport() {
+      fetch(`${API_BASE_URL}/api/support-messages`, { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: SupportMessage[] | null) => {
+          if (!payload?.length) return;
+          setMessages(payload);
+          localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(payload));
+        })
+        .catch(() => undefined);
+    }
+
     syncSupport();
+    syncBackendSupport();
+    const interval = window.setInterval(syncBackendSupport, 6000);
     window.addEventListener("storage", syncSupport);
     window.addEventListener("cuddy-support-change", syncSupport);
 
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener("storage", syncSupport);
       window.removeEventListener("cuddy-support-change", syncSupport);
     };
@@ -53,6 +106,11 @@ export function FloatingSupport() {
   function saveMessages(nextMessages: SupportMessage[]) {
     setMessages(nextMessages);
     localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(nextMessages));
+    void fetch(`${API_BASE_URL}/api/support-messages`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextMessages)
+    }).catch(() => undefined);
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
@@ -68,14 +126,22 @@ export function FloatingSupport() {
 
     const userMessage: SupportMessage = {
       id: `user-${Date.now()}`,
+      ...getConversationProfile(),
       from: "user",
       text: draft.trim(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: "sent"
     };
 
     saveMessages([...messages, userMessage]);
     setDraft("");
   }
+
+  const currentConversationId = getCurrentConversationId();
+  const visibleMessages = messages.filter((message) => {
+    const conversationId = message.conversationId ?? "global";
+    return conversationId === "global" || conversationId === currentConversationId;
+  });
 
   return (
     <>
@@ -114,7 +180,7 @@ export function FloatingSupport() {
             </div>
 
             <div className="flex-1 space-y-3 overflow-auto bg-panel p-4">
-              {messages.map((message) => (
+              {visibleMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.from === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[82%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${
@@ -122,8 +188,9 @@ export function FloatingSupport() {
                     }`}
                   >
                     <p>{message.text}</p>
-                    <span className={`mt-2 block text-[10px] font-bold ${message.from === "user" ? "text-white/50" : "text-ink/40"}`}>
+                    <span className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${message.from === "user" ? "justify-end text-white/55" : "text-ink/40"}`}>
                       {new Date(message.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}
+                      {message.from === "user" ? message.status === "read" ? <CheckCheck size={13} /> : <Check size={13} /> : null}
                     </span>
                   </div>
                 </div>

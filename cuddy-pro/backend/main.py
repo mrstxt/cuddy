@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
@@ -18,7 +19,10 @@ app = FastAPI(title="Cuddy Pro API", version="0.1.0")
 
 frontend_origins = [
     origin.strip()
-    for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+    ).split(",")
     if origin.strip()
 ]
 
@@ -37,6 +41,25 @@ class CodeTranslatePayload(BaseModel):
     code: str
     explain: bool = True
     max_lines: int = 150
+
+
+DATA_DIR = Path(os.getenv("CUDDY_DATA_DIR", Path(__file__).resolve().parent / "data"))
+ADMIN_STATE_FILE = DATA_DIR / "admin-state.json"
+SUPPORT_FILE = DATA_DIR / "support-messages.json"
+
+
+def read_json_file(path: Path, fallback: Any) -> Any:
+    if not path.exists():
+        return fallback
+    try:
+        return __import__("json").loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+
+def write_json_file(path: Path, payload: Any) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(__import__("json").dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def count_code_lines(code: str) -> int:
@@ -62,6 +85,28 @@ def provider_error(message: str, status_code: int = 502) -> HTTPException:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/admin-state")
+async def get_admin_state() -> JSONResponse:
+    return JSONResponse(read_json_file(ADMIN_STATE_FILE, {}))
+
+
+@app.put("/api/admin-state")
+async def save_admin_state(payload: dict[str, Any]) -> JSONResponse:
+    write_json_file(ADMIN_STATE_FILE, payload)
+    return JSONResponse({"ok": True, "state": payload})
+
+
+@app.get("/api/support-messages")
+async def get_support_messages() -> JSONResponse:
+    return JSONResponse(read_json_file(SUPPORT_FILE, []))
+
+
+@app.put("/api/support-messages")
+async def save_support_messages(payload: list[dict[str, Any]]) -> JSONResponse:
+    write_json_file(SUPPORT_FILE, payload)
+    return JSONResponse({"ok": True, "messages": payload})
 
 
 @app.post("/api/bg-remover")

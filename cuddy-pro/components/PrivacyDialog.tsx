@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { getAdminState, syncAdminStateFromBackend } from "@/lib/admin-state";
 
 type PrivacyDialogProps = {
   className?: string;
@@ -9,6 +10,19 @@ type PrivacyDialogProps = {
 
 export function PrivacyDialog({ className }: PrivacyDialogProps) {
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [version, setVersion] = useState(0);
+  const privacy = getAdminState().privacy;
+
+  useEffect(() => {
+    function sync() {
+      setVersion((current) => current + 1);
+    }
+    void syncAdminStateFromBackend();
+    window.addEventListener("cuddy-admin-state-change", sync);
+    return () => window.removeEventListener("cuddy-admin-state-change", sync);
+  }, []);
+
+  void version;
 
   return (
     <>
@@ -36,24 +50,21 @@ export function PrivacyDialog({ className }: PrivacyDialogProps) {
 
             <div className="grid gap-4 text-sm leading-7 text-ink">
               <section className="rounded-[22px] border border-black/5 bg-[#f3f5ef] p-4 text-ink">
-                <h3 className="font-black text-ink">Lokal ishlaydigan vositalar</h3>
+                <h3 className="font-black text-ink">{privacy?.localTitle || "Lokal ishlaydigan vositalar"}</h3>
                 <p className="mt-1 text-ink/72">
-                  QR, JSON, Base64, hash, kod skrinshoti va rasm siqish kabi tezkor funksiyalar
-                  brauzer ichida bajariladi.
+                  {privacy?.localBody || "QR, JSON, Base64, hash, kod skrinshoti va rasm siqish kabi tezkor funksiyalar brauzer ichida bajariladi."}
                 </p>
               </section>
               <section className="rounded-[22px] border border-black/5 bg-[#eef6ff] p-4 text-ink">
-                <h3 className="font-black text-ink">Serverda bajariladigan vazifalar</h3>
+                <h3 className="font-black text-ink">{privacy?.serverTitle || "Serverda bajariladigan vazifalar"}</h3>
                 <p className="mt-1 text-ink/72">
-                  Og'ir rasm qayta ishlash va kod tekshirish kabi vazifalar xavfsiz server qatlami
-                  orqali bajarilishi mumkin. Maxfiy kalitlar frontendga chiqarilmaydi.
+                  {privacy?.serverBody || "Og'ir rasm qayta ishlash va kod tekshirish kabi vazifalar xavfsiz server qatlami orqali bajarilishi mumkin. Maxfiy kalitlar frontendga chiqarilmaydi."}
                 </p>
               </section>
               <section className="rounded-[22px] border border-black/5 bg-[#f7ffdb] p-4 text-ink">
-                <h3 className="font-black text-ink">Bepul limit</h3>
+                <h3 className="font-black text-ink">{privacy?.limitTitle || "Bepul limit"}</h3>
                 <p className="mt-1 text-ink/72">
-                  Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun Google orqali
-                  yoki email bilan ro'yxatdan o'tish mumkin.
+                  {privacy?.limitBody || "Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun Google orqali yoki email bilan ro'yxatdan o'tish mumkin."}
                 </p>
               </section>
             </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogOut, UserRound, X } from "lucide-react";
+import { AuthDialog } from "@/components/AuthDialog";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLanguage } from "@/components/useLanguage";
@@ -11,6 +11,7 @@ import { getCurrentUser, logoutUser, type DemoUser } from "@/lib/auth";
 export function SiteHeader() {
   const { t } = useLanguage();
   const [user, setUser] = useState<DemoUser | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
@@ -18,13 +19,18 @@ export function SiteHeader() {
     function syncAuth() {
       setUser(getCurrentUser());
     }
+    function openAuth() {
+      setAuthOpen(true);
+    }
     window.addEventListener("storage", syncAuth);
     window.addEventListener("focus", syncAuth);
     window.addEventListener("cuddy-auth-change", syncAuth);
+    window.addEventListener("cuddy-auth-open", openAuth);
     return () => {
       window.removeEventListener("storage", syncAuth);
       window.removeEventListener("focus", syncAuth);
       window.removeEventListener("cuddy-auth-change", syncAuth);
+      window.removeEventListener("cuddy-auth-open", openAuth);
     };
   }, []);
 
@@ -41,9 +47,9 @@ export function SiteHeader() {
           <Logo size="sm" />
           <div className="flex items-center gap-1 text-sm font-medium text-ink/75 sm:gap-2">
             <LanguageSwitcher />
-            <Link className="hidden rounded-full px-3 py-2 hover:bg-panel sm:inline-flex" href="/about">
+            <a className="hidden rounded-full px-3 py-2 hover:bg-panel sm:inline-flex" href="/about">
               {t("about")}
-            </Link>
+            </a>
             {user ? (
               <button
                 className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-2 font-black text-white hover:bg-black sm:px-4"
@@ -54,14 +60,23 @@ export function SiteHeader() {
                 <span>Profil</span>
               </button>
             ) : (
-              <Link className="rounded-full bg-ink px-3 py-2 font-black text-white hover:bg-black sm:px-4" href="/login">
+              <button className="rounded-full bg-ink px-3 py-2 font-black text-white hover:bg-black sm:px-4" type="button" onClick={() => setAuthOpen(true)}>
                 <span className="sm:hidden">{t("login")}</span>
                 <span className="hidden sm:inline">{t("register")}</span>
-              </Link>
+              </button>
             )}
           </div>
         </nav>
       </header>
+
+      <AuthDialog
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onSuccess={() => {
+          setUser(getCurrentUser());
+          setProfileOpen(true);
+        }}
+      />
 
       {profileOpen && user ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/86 px-4 py-8 text-ink backdrop-blur-sm">

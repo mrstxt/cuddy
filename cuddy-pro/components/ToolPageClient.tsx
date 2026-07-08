@@ -1,13 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowLeft, LayoutGrid } from "lucide-react";
 import ToolRenderer from "@/components/ToolRenderer";
-import { applyAdminToolOverride, getAdminState, isToolEnabled } from "@/lib/admin-state";
+import { applyAdminToolOverride, getAdminState, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
 import { getTool } from "@/lib/tools";
 
 export function ToolPageClient({ slug }: { slug: string }) {
+  const [adminVersion, setAdminVersion] = useState(0);
   const tool = getTool(slug);
+
+  useEffect(() => {
+    function sync() {
+      setAdminVersion((version) => version + 1);
+    }
+    void syncAdminStateFromBackend();
+    window.addEventListener("cuddy-admin-state-change", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("cuddy-admin-state-change", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
+
+  void adminVersion;
+
   if (!tool) return null;
 
   const adminState = getAdminState();

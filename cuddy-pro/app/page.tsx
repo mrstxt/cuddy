@@ -6,7 +6,7 @@ import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { TrustCards } from "@/components/TrustCards";
 import { useLanguage } from "@/components/useLanguage";
 import { categoryText, localizeTool } from "@/lib/i18n";
-import { applyAdminToolOverride, getAdminState, isToolEnabled } from "@/lib/admin-state";
+import { applyAdminToolOverride, getAdminState, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
 import { getCurrentUser, getToolUsage, type DemoUser } from "@/lib/auth";
 import { orderedCategories, tools } from "@/lib/tools";
 
@@ -16,6 +16,7 @@ export default function Home() {
   const [adminVersion, setAdminVersion] = useState(0);
 
   const adminState = getAdminState();
+  const siteContent = adminState.site;
   const visibleTools = tools.filter((tool) => isToolEnabled(tool.slug, adminState)).map((tool) => applyAdminToolOverride(tool, adminState));
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function Home() {
       setAdminVersion((version) => version + 1);
     }
     syncProfile();
+    void syncAdminStateFromBackend();
     window.addEventListener("cuddy-auth-change", syncProfile);
     window.addEventListener("cuddy-admin-state-change", syncProfile);
     window.addEventListener("focus", syncProfile);
@@ -49,25 +51,26 @@ export default function Home() {
               <Sparkles size={15} /> {t("heroBadge")}
             </span>
             <h1 className="max-w-3xl text-3xl font-black leading-tight text-ink sm:text-5xl">
-              {t("heroTitle")}
+              {siteContent?.heroTitle || t("heroTitle")}
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-ink/72">
-              {t("heroBody")}
+              {siteContent?.heroBody || t("heroBody")}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 href="#tools"
                 className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-black uppercase text-white shadow-soft hover:bg-black"
               >
-                {t("viewTools")} <ArrowRight size={17} />
+                {siteContent?.primaryButton || t("viewTools")} <ArrowRight size={17} />
               </Link>
               {!currentUser ? (
-                <Link
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent("cuddy-auth-open"))}
                   className="rounded-full border border-ink/15 bg-white px-5 py-3 text-sm font-black uppercase text-ink shadow-sm hover:bg-mint"
                 >
-                  {t("login")}
-                </Link>
+                  {siteContent?.secondaryButton || t("login")}
+                </button>
               ) : null}
             </div>
           </div>

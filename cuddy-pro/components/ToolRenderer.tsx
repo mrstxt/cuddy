@@ -187,7 +187,7 @@ function useUsageGate(slug: string): UsageGate {
 
     const guestLimit = getAdminLimit(slug, false) ?? GUEST_LIMIT;
     if (used >= guestLimit) {
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent("cuddy-auth-open"));
       return false;
     }
     const next = used + 1;

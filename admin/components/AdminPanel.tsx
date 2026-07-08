@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Download, KeyRound, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
+import { BarChart3, Check, CheckCheck, Download, KeyRound, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
 
-type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "support";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats";
 
 type EditableTool = {
   slug: string;
@@ -48,20 +48,39 @@ type AdminState = {
 
 type SupportMessage = {
   id: string;
+  conversationId?: string;
   from: "user" | "admin";
   text: string;
   createdAt: string;
+  status?: "sent" | "read";
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 };
+
+type DemoUser = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+};
+
+type UserUsage = Record<string, { used: number; limit: number; updatedAt: string }>;
 
 const ADMIN_STORAGE_KEY = "cuddy-admin-state";
 const ADMIN_AUTH_KEY = "cuddy-admin-auth";
 const ADMIN_CODE = "cuddy-pro";
 const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
 const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
+const USERS_KEY = "cuddy-users";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const starterSupportMessages: SupportMessage[] = [
   {
     id: "welcome",
+    conversationId: "global",
     from: "admin",
     text: "Salom! Cuddy Pro support. Savolingizni yozing, admin javobini shu chatda ko'rasiz.",
     createdAt: new Date().toISOString()
@@ -232,19 +251,47 @@ export function AdminPanel() {
   const [tab, setTab] = useState<AdminTab>("analytics");
   const [state, setState] = useState<AdminState>(defaultState);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(starterSupportMessages);
+  const [users, setUsers] = useState<DemoUser[]>([]);
   const [savedAt, setSavedAt] = useState("");
 
   useEffect(() => {
     setAuthorized(localStorage.getItem(ADMIN_AUTH_KEY) === "true");
 
     const saved = localStorage.getItem(ADMIN_STORAGE_KEY);
-    if (!saved) return;
-
-    try {
-      setState(JSON.parse(saved) as AdminState);
-    } catch {
-      setState(defaultState);
+    if (saved) {
+      try {
+        setState(JSON.parse(saved) as AdminState);
+      } catch {
+        setState(defaultState);
+      }
     }
+
+    fetch(`${API_BASE_URL}/api/admin-state`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: AdminState | null) => {
+        if (!payload || !payload.tools) return;
+        setState(payload);
+        localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(payload));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    function syncUsers() {
+      try {
+        setUsers(JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as DemoUser[]);
+      } catch {
+        setUsers([]);
+      }
+    }
+
+    syncUsers();
+    window.addEventListener("storage", syncUsers);
+    window.addEventListener("cuddy-auth-change", syncUsers);
+    return () => {
+      window.removeEventListener("storage", syncUsers);
+      window.removeEventListener("cuddy-auth-change", syncUsers);
+    };
   }, []);
 
   useEffect(() => {
@@ -257,11 +304,25 @@ export function AdminPanel() {
       }
     }
 
+    function syncBackendSupport() {
+      fetch(`${API_BASE_URL}/api/support-messages`, { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: SupportMessage[] | null) => {
+          if (!payload?.length) return;
+          setSupportMessages(payload);
+          localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(payload));
+        })
+        .catch(() => undefined);
+    }
+
     syncSupport();
+    syncBackendSupport();
+    const interval = window.setInterval(syncBackendSupport, 6000);
     window.addEventListener("storage", syncSupport);
     window.addEventListener("cuddy-support-change", syncSupport);
 
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener("storage", syncSupport);
       window.removeEventListener("cuddy-support-change", syncSupport);
     };
@@ -271,7 +332,7 @@ export function AdminPanel() {
     () => [
       { label: "Tool", value: state.tools.length },
       { label: "Faol", value: state.tools.filter((tool) => tool.enabled).length },
-      { label: "Support", value: supportMessages.filter((message) => message.from === "user").length }
+      { label: "Chatlar", value: getConversationRows(supportMessages).length }
     ],
     [state.tools, supportMessages]
   );
@@ -285,6 +346,11 @@ export function AdminPanel() {
 
   function save() {
     localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(state));
+    void fetch(`${API_BASE_URL}/api/admin-state`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state)
+    }).catch(() => undefined);
     window.dispatchEvent(new CustomEvent("cuddy-admin-state-change"));
     setSavedAt(new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }));
   }
@@ -323,15 +389,23 @@ export function AdminPanel() {
   function saveSupportMessages(nextMessages: SupportMessage[]) {
     setSupportMessages(nextMessages);
     localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(nextMessages));
+    void fetch(`${API_BASE_URL}/api/support-messages`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextMessages)
+    }).catch(() => undefined);
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
-  function sendSupportReply(text: string) {
+  function sendSupportReply(text: string, conversationId: string) {
+    const lastUserMessage = [...supportMessages].reverse().find((message) => (message.conversationId ?? "global") === conversationId && message.from === "user");
     const reply: SupportMessage = {
       id: `admin-${Date.now()}`,
+      conversationId,
       from: "admin",
       text,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      user: lastUserMessage?.user
     };
     saveSupportMessages([...supportMessages, reply]);
     const unread = Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "0") + 1;
@@ -415,7 +489,7 @@ export function AdminPanel() {
               { id: "tools" as const, label: "Tool'lar" },
               { id: "site" as const, label: "Sayt matnlari" },
               { id: "privacy" as const, label: "Maxfiylik" },
-              { id: "support" as const, label: "Support", icon: MessageCircle }
+              { id: "chats" as const, label: "Chatlar", icon: MessageCircle }
             ].map((item) => (
               <button
                 key={item.id}
@@ -441,7 +515,15 @@ export function AdminPanel() {
             {tab === "privacy" ? (
               <PrivacyEditor privacy={state.privacy} setPrivacy={(privacy) => setState((current) => ({ ...current, privacy }))} />
             ) : null}
-            {tab === "support" ? <SupportInbox messages={supportMessages} sendReply={sendSupportReply} clearMessages={() => saveSupportMessages(starterSupportMessages)} /> : null}
+            {tab === "chats" ? (
+              <SupportInbox
+                messages={supportMessages}
+                users={users}
+                saveMessages={saveSupportMessages}
+                sendReply={sendSupportReply}
+                clearMessages={() => saveSupportMessages(starterSupportMessages)}
+              />
+            ) : null}
           </section>
         </div>
       </section>
@@ -628,40 +710,101 @@ function PrivacyEditor({ privacy, setPrivacy }: { privacy: PrivacyContent; setPr
   );
 }
 
+function getConversationRows(messages: SupportMessage[]) {
+  const map = new Map<
+    string,
+    {
+      id: string;
+      user?: SupportMessage["user"];
+      lastText: string;
+      lastAt: string;
+      unread: number;
+    }
+  >();
+
+  messages.forEach((message) => {
+    const id = message.conversationId ?? "global";
+    const current = map.get(id);
+    map.set(id, {
+      id,
+      user: message.user ?? current?.user,
+      lastText: message.text,
+      lastAt: message.createdAt,
+      unread: (current?.unread ?? 0) + (message.from === "user" && message.status !== "read" ? 1 : 0)
+    });
+  });
+
+  return [...map.values()].sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
+}
+
+function getUserUsageRows(userId: string) {
+  try {
+    const usage = JSON.parse(localStorage.getItem(`cuddy-user-usage-${userId}`) ?? "{}") as UserUsage;
+    return Object.entries(usage).map(([slug, record]) => ({ slug, ...record }));
+  } catch {
+    return [];
+  }
+}
+
+function ProfileStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[20px] bg-white p-3">
+      <span className="text-[10px] font-black uppercase text-ink/40">{label}</span>
+      <p className="mt-1 break-all text-sm font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
 function SupportInbox({
   messages,
+  users,
+  saveMessages,
   sendReply,
   clearMessages
 }: {
   messages: SupportMessage[];
-  sendReply: (text: string) => void;
+  users: DemoUser[];
+  saveMessages: (messages: SupportMessage[]) => void;
+  sendReply: (text: string, conversationId: string) => void;
   clearMessages: () => void;
 }) {
   const [reply, setReply] = useState("");
-  const userMessages = messages.filter((message) => message.from === "user");
-  const lastUserMessage = userMessages[userMessages.length - 1];
+  const conversations = getConversationRows(messages);
+  const [activeId, setActiveId] = useState(conversations[0]?.id ?? "global");
+  const activeConversation = conversations.find((conversation) => conversation.id === activeId) ?? conversations[0];
+  const activeMessages = activeConversation ? messages.filter((message) => (message.conversationId ?? "global") === activeConversation.id) : messages;
+  const activeUser = users.find((user) => user.id === activeConversation?.user?.id);
+  const usageRows = activeConversation?.user?.id ? getUserUsageRows(activeConversation.user.id) : [];
+
+  function selectConversation(conversationId: string) {
+    setActiveId(conversationId);
+    const nextMessages = messages.map((message) =>
+      (message.conversationId ?? "global") === conversationId && message.from === "user" ? { ...message, status: "read" as const } : message
+    );
+    saveMessages(nextMessages);
+  }
 
   function submitReply() {
-    if (!reply.trim()) return;
-    sendReply(reply.trim());
+    if (!reply.trim() || !activeConversation) return;
+    sendReply(reply.trim(), activeConversation.id);
     setReply("");
   }
 
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 md:grid-cols-3">
-        <AnalyticsStat label="User xabarlari" value={userMessages.length} />
+        <AnalyticsStat label="Chatlar" value={conversations.length} />
+        <AnalyticsStat label="O'qilmagan" value={messages.filter((message) => message.from === "user" && message.status !== "read").length} />
         <AnalyticsStat label="Admin javoblari" value={messages.filter((message) => message.from === "admin").length} />
-        <AnalyticsStat label="Oxirgi murojaat" value={lastUserMessage ? new Date(lastUserMessage.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }) : "-"} />
       </div>
 
       <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
         <div className="flex flex-col gap-3 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span className="text-xs font-black uppercase text-ink/45">Support inbox</span>
-            <h2 className="mt-1 text-2xl font-black text-ink">Admin bilan chat xabarlari</h2>
+            <span className="text-xs font-black uppercase text-ink/45">Chatlar</span>
+            <h2 className="mt-1 text-2xl font-black text-ink">User support suhbatlari</h2>
             <p className="mt-1 text-sm leading-6 text-ink/60">
-              User support iconkasidan yozgan xabarlar shu yerda ko'rinadi. Javob yozsangiz user tomonda bildirishnoma badge chiqadi.
+              Har bir user yoki mehmon alohida chat sifatida ko'rinadi. Chat ochilganda user xabari o'qilgan holatiga o'tadi.
             </p>
           </div>
           <button className="w-fit rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={clearMessages}>
@@ -669,39 +812,86 @@ function SupportInbox({
           </button>
         </div>
 
-        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="max-h-[520px] space-y-3 overflow-auto rounded-[26px] bg-panel p-4">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.from === "admin" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[84%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
-                  <span className={`mb-1 block text-[10px] font-black uppercase ${message.from === "admin" ? "text-mint" : "text-ink/40"}`}>
-                    {message.from === "admin" ? "Admin" : "User"}
-                  </span>
-                  <p>{message.text}</p>
-                  <span className={`mt-2 block text-[10px] font-bold ${message.from === "admin" ? "text-white/50" : "text-ink/40"}`}>
-                    {new Date(message.createdAt).toLocaleString("uz-UZ", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
-                  </span>
+        <div className="grid gap-4 p-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+          <div className="max-h-[560px] space-y-2 overflow-auto rounded-[26px] bg-panel p-2">
+            {conversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                className={`w-full rounded-[22px] p-4 text-left transition ${activeConversation?.id === conversation.id ? "bg-ink text-white shadow-sm" : "bg-white text-ink hover:bg-mint"}`}
+                type="button"
+                onClick={() => selectConversation(conversation.id)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-sm">{conversation.user?.name ?? "Demo mehmon"}</strong>
+                    <span className={`mt-1 block text-xs ${activeConversation?.id === conversation.id ? "text-white/55" : "text-ink/45"}`}>{conversation.user?.email ?? conversation.id}</span>
+                  </div>
+                  {conversation.unread ? <span className="grid h-6 min-w-6 place-items-center rounded-full bg-tomato px-2 text-xs font-black text-white">{conversation.unread}</span> : null}
                 </div>
-              </div>
+                <p className={`mt-3 line-clamp-2 text-xs leading-5 ${activeConversation?.id === conversation.id ? "text-white/65" : "text-ink/55"}`}>{conversation.lastText}</p>
+              </button>
             ))}
           </div>
 
+          <div className="grid min-h-[560px] grid-rows-[1fr_auto] overflow-hidden rounded-[26px] bg-panel">
+            <div className="space-y-3 overflow-auto p-4">
+              {activeMessages.map((message) => (
+                <div key={message.id} className={`flex ${message.from === "admin" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[84%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
+                    <span className={`mb-1 block text-[10px] font-black uppercase ${message.from === "admin" ? "text-mint" : "text-ink/40"}`}>
+                      {message.from === "admin" ? "Admin" : "User"}
+                    </span>
+                    <p>{message.text}</p>
+                    <span className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${message.from === "admin" ? "justify-end text-white/50" : "text-ink/40"}`}>
+                      {new Date(message.createdAt).toLocaleString("uz-UZ", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                      {message.from === "user" ? message.status === "read" ? <CheckCheck size={13} /> : <Check size={13} /> : null}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-black/10 bg-white p-3">
+              <div className="flex gap-2 rounded-[22px] bg-panel p-2">
+                <input
+                  className="min-w-0 flex-1 bg-transparent px-3 text-sm font-bold text-ink outline-none"
+                  value={reply}
+                  onChange={(event) => setReply(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") submitReply();
+                  }}
+                  placeholder="Javob yozing..."
+                />
+                <button className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink text-mint hover:bg-black" type="button" onClick={submitReply} aria-label="Javob yuborish">
+                  <MessageCircle size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="h-fit rounded-[26px] border border-black/10 bg-panel p-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-black text-ink">Admin javobi</span>
-              <textarea
-                className="min-h-40 w-full rounded-[22px] border border-black/10 bg-white px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none focus:border-mint"
-                value={reply}
-                onChange={(event) => setReply(event.target.value)}
-                placeholder="Javob matnini yozing..."
-              />
-            </label>
-            <button className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-black text-mint shadow-sm hover:bg-black" type="button" onClick={submitReply}>
-              <MessageCircle size={16} /> Javob yuborish
-            </button>
-            <p className="mt-3 text-xs font-bold leading-5 text-ink/45">
-              Demo rejimda xabarlar browser localStorage'da saqlanadi. Production uchun backend support jadvali ulanadi.
-            </p>
+            <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint">
+              <UserRound size={24} />
+            </div>
+            <h3 className="mt-4 text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Demo mehmon"}</h3>
+            <p className="mt-1 text-sm font-bold text-ink/55">{activeConversation?.user?.email ?? activeUser?.email ?? "guest@cuddy.pro"}</p>
+            <div className="mt-4 grid gap-3">
+              <ProfileStat label="Account" value={activeUser ? "Registered" : "Guest/Demo"} />
+              <ProfileStat label="User ID" value={activeConversation?.user?.id ?? activeConversation?.id ?? "-"} />
+              <ProfileStat label="Chat xabarlari" value={String(activeMessages.length)} />
+            </div>
+            {usageRows.length ? (
+              <div className="mt-4 rounded-[22px] bg-white p-3">
+                <span className="text-xs font-black uppercase text-ink/45">Tool statistikasi</span>
+                <div className="mt-3 grid gap-2">
+                  {usageRows.slice(0, 5).map((row) => (
+                    <div key={row.slug} className="flex items-center justify-between gap-2 text-xs font-bold text-ink/65">
+                      <span>{row.slug}</span>
+                      <span>{row.used}/{row.limit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
