@@ -51,7 +51,19 @@ npm run lint
 npm run build
 ```
 
-## Deploy
+## Deploy Tavsiyasi
+
+Bu loyiha uchun eng qulay yo'l:
+
+```text
+Cloudflare Pages  -> cuddy-pro/ public platforma
+Cloudflare Pages  -> admin/ admin panel
+Python API        -> api.cuddy.uz alohida backend
+```
+
+Firebase Hosting ham static frontend uchun ishlaydi, lekin backend Python/FastAPI bo'lgani uchun
+Firebase Spark rejasida to'liq mos emas. Firebase'da real backend uchun odatda Blaze/Google Cloud
+servislari kerak bo'ladi. Cloudflare Pages static deploy uchun bu repo tuzilmasiga mosroq.
 
 Tavsiya qilingan domainlar:
 
@@ -90,6 +102,15 @@ PHOTOROOM_API_KEY=...
 PICSART_API_KEY=...
 FRONTEND_ORIGINS=https://cuddy.uz,https://admin.cuddy.uz
 ```
+
+Cloudflare API Worker konfiguratsiyasi:
+
+```text
+cuddy-pro/cloudflare/api-worker/
+```
+
+Eslatma: hozirgi Python API demo JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
+papka). Production uchun admin state, user, chat va limitlarni haqiqiy databasega ulash kerak.
 
 ## Tayyor Toollar
 

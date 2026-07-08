@@ -9,7 +9,7 @@ export class CuddyApiContainer extends Container {
     PICSART_API_KEY: env.PICSART_API_KEY,
     OPENAI_API_KEY: env.OPENAI_API_KEY,
     OPENAI_MODEL: env.OPENAI_MODEL || "gpt-4.1-mini",
-    FRONTEND_ORIGINS: env.FRONTEND_ORIGINS || env.FRONTEND_ORIGIN || "https://cuddypro.com"
+    FRONTEND_ORIGINS: env.FRONTEND_ORIGINS || env.FRONTEND_ORIGIN || "https://cuddy.uz,https://admin.cuddy.uz"
   };
 }
 
@@ -20,7 +20,7 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
-        headers: corsHeaders(env)
+        headers: corsHeaders(request, env)
       });
     }
 
@@ -28,7 +28,7 @@ export default {
     const response = await container.fetch(request);
     const headers = new Headers(response.headers);
 
-    for (const [key, value] of Object.entries(corsHeaders(env))) {
+    for (const [key, value] of Object.entries(corsHeaders(request, env))) {
       headers.set(key, value);
     }
 
@@ -44,12 +44,17 @@ export default {
   }
 };
 
-function corsHeaders(env: Env) {
-  const origin = env.FRONTEND_ORIGIN || env.FRONTEND_ORIGINS || "https://cuddypro.com";
+function corsHeaders(request: Request, env: Env) {
+  const allowedOrigins = (env.FRONTEND_ORIGINS || env.FRONTEND_ORIGIN || "https://cuddy.uz,https://admin.cuddy.uz")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const requestOrigin = request.headers.get("Origin") || allowedOrigins[0] || "https://cuddy.uz";
+  const origin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0] || "https://cuddy.uz";
 
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Max-Age": "86400"
   };
