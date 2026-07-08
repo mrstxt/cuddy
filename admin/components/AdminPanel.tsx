@@ -77,6 +77,12 @@ const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
 const USERS_KEY = "cuddy-users";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+const editorCardClass = "rounded-[30px] border border-white/75 bg-white/88 p-4 shadow-sm ring-1 ring-black/[0.03] transition hover:-translate-y-0.5 hover:shadow-soft sm:p-5";
+const inputClass =
+  "w-full rounded-[20px] border border-black/10 bg-white/82 px-4 py-3 text-sm text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
+const textareaClass =
+  "min-h-28 w-full rounded-[20px] border border-black/10 bg-white/82 px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
+
 const starterSupportMessages: SupportMessage[] = [
   {
     id: "welcome",
@@ -415,10 +421,21 @@ export function AdminPanel() {
 
   if (!authorized) {
     return (
-      <main className="mx-auto grid min-h-[70vh] max-w-4xl place-items-center px-4 py-10 sm:px-6 lg:px-8">
-        <section className="w-full overflow-hidden rounded-[38px] border border-black/10 bg-white/88 shadow-soft backdrop-blur">
-          <div className="bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-6 text-center sm:p-10">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-[24px] bg-ink text-mint">
+      <main className="mx-auto grid min-h-[82vh] max-w-5xl place-items-center px-4 py-10 sm:px-6 lg:px-8">
+        <section className="grid w-full overflow-hidden rounded-[42px] border border-white/80 bg-white/88 shadow-soft backdrop-blur lg:grid-cols-[0.85fr_1fr]">
+          <div className="relative overflow-hidden bg-ink p-7 text-white sm:p-10">
+            <div className="absolute right-[-80px] top-[-90px] h-56 w-56 rounded-full bg-mint/25 blur-3xl" />
+            <div className="absolute bottom-[-90px] left-[-80px] h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+            <div className="relative">
+              <span className="inline-flex rounded-full bg-mint px-4 py-2 text-xs font-black uppercase text-ink shadow-glow">Cuddy Pro</span>
+              <h1 className="mt-8 max-w-sm text-4xl font-black leading-tight sm:text-5xl">Admin control center</h1>
+              <p className="mt-4 max-w-sm text-sm leading-7 text-white/68">
+                Tool, limit, chat va sayt matnlarini bitta paneldan boshqarish uchun demo admin kirishi.
+              </p>
+            </div>
+          </div>
+          <div className="p-6 text-center sm:p-10">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-[24px] bg-ink text-mint shadow-glow">
               <KeyRound size={28} />
             </div>
             <span className="mt-6 block text-xs font-black uppercase text-ink/45">Admin panel</span>
@@ -426,10 +443,9 @@ export function AdminPanel() {
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-ink/65">
               Tool'lar, sayt matnlari va maxfiylik bloklarini boshqarish uchun admin kodni kiriting.
             </p>
-          </div>
-          <div className="mx-auto grid max-w-md gap-3 p-6 sm:p-8">
+          <div className="mx-auto mt-7 grid max-w-md gap-3">
             <input
-              className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-3 text-center font-black text-ink shadow-inner outline-none focus:border-mint"
+              className="w-full rounded-[24px] border border-black/10 bg-panel px-4 py-4 text-center font-black text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white"
               value={code}
               onChange={(event) => setCode(event.target.value)}
               onKeyDown={(event) => {
@@ -443,19 +459,21 @@ export function AdminPanel() {
             </button>
             <p className="text-center text-xs font-bold text-ink/45">Demo kod: cuddy-pro</p>
           </div>
+          </div>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[38px] border border-black/10 bg-white/88 shadow-soft backdrop-blur">
-        <div className="flex flex-col gap-5 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_52%,#eef5ff_100%)] p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between">
+    <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+      <section className="overflow-hidden rounded-[42px] border border-white/80 bg-white/78 shadow-soft backdrop-blur">
+        <div className="relative overflow-hidden border-b border-black/10 bg-[radial-gradient(circle_at_18%_20%,rgba(182,255,0,0.55),transparent_26%),linear-gradient(135deg,#ffffff_0%,#f7ffdb_48%,#eef5ff_100%)] p-5 sm:p-7">
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="text-xs font-black uppercase text-ink/45">Cuddy Pro Admin</span>
-            <h1 className="mt-2 text-3xl font-black text-ink sm:text-4xl">Sayt boshqaruvi</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
+            <span className="inline-flex rounded-full bg-ink px-4 py-2 text-xs font-black uppercase text-mint shadow-sm">Cuddy Pro Admin</span>
+            <h1 className="mt-4 text-3xl font-black leading-tight text-ink sm:text-5xl">Sayt boshqaruvi</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-ink/65">
               Tool nomlari, tavsiflar, asosiy matnlar va maxfiylik shartlarini bir joydan tahrirlang.
             </p>
           </div>
@@ -470,19 +488,20 @@ export function AdminPanel() {
               <RotateCcw size={16} /> Reset
             </button>
           </div>
+          </div>
         </div>
 
-        <div className="grid gap-4 border-y border-black/10 bg-ink p-4 sm:grid-cols-3">
+        <div className="grid gap-4 bg-ink p-4 sm:grid-cols-3 lg:p-5">
           {stats.map((item) => (
-            <div key={item.label} className="rounded-[26px] border border-white/10 bg-white/8 p-5 text-white">
+            <div key={item.label} className="rounded-[28px] border border-white/10 bg-white/[0.08] p-5 text-white shadow-sm backdrop-blur">
               <strong className="block text-3xl font-black text-mint">{item.value}</strong>
               <span className="mt-1 block text-sm text-white/70">{item.label}</span>
             </div>
           ))}
         </div>
 
-        <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[28px] bg-panel p-2">
+        <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-[32px] border border-white/75 bg-panel/90 p-2 shadow-sm lg:sticky lg:top-6">
             {[
               { id: "analytics" as const, label: "Analitika", icon: BarChart3 },
               { id: "limits" as const, label: "Limitlar", icon: SlidersHorizontal },
@@ -493,13 +512,16 @@ export function AdminPanel() {
             ].map((item) => (
               <button
                 key={item.id}
-                className={`flex w-full items-center gap-2 rounded-[22px] px-4 py-3 text-left text-sm font-black transition ${
-                  tab === item.id ? "bg-ink text-mint shadow-sm" : "text-ink/65 hover:bg-white hover:text-ink"
+                className={`flex w-full items-center gap-3 rounded-[24px] px-4 py-3 text-left text-sm font-black transition ${
+                  tab === item.id ? "bg-ink text-mint shadow-sm" : "text-ink/65 hover:bg-white hover:text-ink hover:shadow-sm"
                 }`}
                 type="button"
                 onClick={() => setTab(item.id)}
               >
-                {item.icon ? <item.icon size={16} /> : <Settings2 size={16} />} {item.label}
+                <span className={`grid h-9 w-9 place-items-center rounded-[15px] ${tab === item.id ? "bg-white/10" : "bg-white"}`}>
+                  {item.icon ? <item.icon size={16} /> : <Settings2 size={16} />}
+                </span>
+                {item.label}
               </button>
             ))}
             {savedAt ? <p className="px-4 py-3 text-xs font-bold text-ink/45">Oxirgi holat: {savedAt}</p> : null}
@@ -559,17 +581,19 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
         <AnalyticsStat label="Limit to'siqlari" value={blockedTotal} />
         <AnalyticsStat label="Eng talabgir" value={topTool?.name ?? "-"} />
       </div>
-      <div className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+      <div className="overflow-hidden rounded-[34px] border border-white/75 bg-white/88 shadow-sm ring-1 ring-black/[0.03]">
+        <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_100%)] p-5">
         <h2 className="text-xl font-black text-ink">Tool talab va limit analitikasi</h2>
         <p className="mt-1 text-sm leading-6 text-ink/60">
           Demo panel: production’da bu qiymatlar backend eventlari va database orqali real vaqtda to'planadi.
         </p>
-        <div className="mt-4 grid gap-3">
+        </div>
+        <div className="grid gap-3 p-4">
           {rows.map((row) => {
             const limit = limits.find((item) => item.slug === row.slug);
             const demandPercent = Math.min(100, row.usage / 4);
             return (
-              <article key={row.slug} className="rounded-[24px] bg-panel p-4">
+              <article key={row.slug} className="rounded-[26px] border border-white/80 bg-panel p-4 shadow-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <strong className="text-ink">{row.name}</strong>
@@ -581,8 +605,8 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
                     {row.enabled ? "Faol" : "Yopiq"}
                   </span>
                 </div>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-white">
-                  <div className="h-full rounded-full bg-ink" style={{ width: `${demandPercent}%` }} />
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-white shadow-inner">
+                  <div className="h-full rounded-full bg-[linear-gradient(90deg,#313131_0%,#B6FF00_100%)]" style={{ width: `${demandPercent}%` }} />
                 </div>
                 <p className="mt-2 text-xs font-bold text-ink/55">
                   Limit: {limit?.limit ?? 3}/{limit?.period ?? "daily"} guest, {limit?.registeredLimit ?? 25} registered.
@@ -599,7 +623,7 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
 
 function AnalyticsStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-[26px] bg-ink p-5 text-white">
+    <div className="rounded-[28px] border border-white/10 bg-ink p-5 text-white shadow-sm">
       <strong className="block text-2xl font-black text-mint">{value}</strong>
       <span className="mt-1 block text-sm text-white/70">{label}</span>
     </div>
@@ -620,7 +644,7 @@ function LimitEditor({
       {limits.map((limit, index) => {
         const tool = tools.find((item) => item.slug === limit.slug);
         return (
-          <article key={limit.slug} className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+          <article key={limit.slug} className={editorCardClass}>
             <div className="mb-4">
               <span className="text-xs font-black uppercase text-ink/40">{limit.slug}</span>
               <h2 className="text-xl font-black text-ink">{tool?.name ?? limit.slug}</h2>
@@ -630,7 +654,7 @@ function LimitEditor({
               <label className="block">
                 <span className="mb-2 block text-sm font-black text-ink">Davr</span>
                 <select
-                  className="w-full rounded-[20px] border border-black/10 bg-panel px-4 py-3 text-sm text-ink shadow-inner outline-none focus:border-mint focus:bg-white"
+                  className={inputClass}
                   value={limit.period}
                   onChange={(event) => updateLimit(index, { period: event.target.value as "daily" | "weekly" })}
                 >
@@ -658,13 +682,13 @@ function ToolsEditor({
   return (
     <div className="grid gap-4">
       {editableTools.map((tool, index) => (
-        <article key={tool.slug} className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+        <article key={tool.slug} className={editorCardClass}>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <span className="text-xs font-black uppercase text-ink/40">{tool.slug}</span>
               <h2 className="text-xl font-black text-ink">{tool.name}</h2>
             </div>
-            <label className="flex w-fit items-center gap-2 rounded-full bg-panel px-4 py-2 text-sm font-black text-ink">
+            <label className={`flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-black shadow-sm ${tool.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
               <input checked={tool.enabled} type="checkbox" onChange={(event) => updateTool(index, { enabled: event.target.checked })} />
               {tool.enabled ? "Faol" : "Vaqtincha yopiq"}
             </label>
@@ -683,7 +707,8 @@ function ToolsEditor({
 
 function SiteEditor({ site, setSite }: { site: SiteContent; setSite: (site: SiteContent) => void }) {
   return (
-    <div className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+    <div className={editorCardClass}>
+      <EditorHeader title="Sayt matnlari" body="Asosiy sahifadagi hero, tugmalar va limit matnlarini shu yerdan boshqaring." />
       <div className="grid gap-3 md:grid-cols-2">
         <AdminTextarea label="Hero sarlavha" value={site.heroTitle} onChange={(heroTitle) => setSite({ ...site, heroTitle })} />
         <AdminTextarea label="Hero tavsif" value={site.heroBody} onChange={(heroBody) => setSite({ ...site, heroBody })} />
@@ -697,7 +722,8 @@ function SiteEditor({ site, setSite }: { site: SiteContent; setSite: (site: Site
 
 function PrivacyEditor({ privacy, setPrivacy }: { privacy: PrivacyContent; setPrivacy: (privacy: PrivacyContent) => void }) {
   return (
-    <div className="rounded-[30px] border border-black/10 bg-white p-4 shadow-sm">
+    <div className={editorCardClass}>
+      <EditorHeader title="Maxfiylik matnlari" body="Public privacy modal ichidagi uchta asosiy blokni tahrirlang." />
       <div className="grid gap-3 md:grid-cols-2">
         <AdminInput label="1-bo'lim sarlavha" value={privacy.localTitle} onChange={(localTitle) => setPrivacy({ ...privacy, localTitle })} />
         <AdminTextarea label="1-bo'lim matn" value={privacy.localBody} onChange={(localBody) => setPrivacy({ ...privacy, localBody })} />
@@ -755,6 +781,16 @@ function ProfileStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function EditorHeader({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="mb-5 border-b border-black/10 pb-4">
+      <span className="text-xs font-black uppercase text-ink/40">Cuddy Pro Admin</span>
+      <h2 className="mt-1 text-2xl font-black text-ink">{title}</h2>
+      <p className="mt-1 max-w-2xl text-sm leading-6 text-ink/60">{body}</p>
+    </div>
+  );
+}
+
 function SupportInbox({
   messages,
   users,
@@ -798,8 +834,8 @@ function SupportInbox({
         <AnalyticsStat label="Admin javoblari" value={messages.filter((message) => message.from === "admin").length} />
       </div>
 
-      <div className="overflow-hidden rounded-[32px] border border-black/10 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="overflow-hidden rounded-[36px] border border-white/75 bg-white/88 shadow-sm ring-1 ring-black/[0.03]">
+        <div className="flex flex-col gap-3 border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="text-xs font-black uppercase text-ink/45">Chatlar</span>
             <h2 className="mt-1 text-2xl font-black text-ink">User support suhbatlari</h2>
@@ -807,17 +843,17 @@ function SupportInbox({
               Har bir user yoki mehmon alohida chat sifatida ko'rinadi. Chat ochilganda user xabari o'qilgan holatiga o'tadi.
             </p>
           </div>
-          <button className="w-fit rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={clearMessages}>
+          <button className="w-fit rounded-full bg-white/85 px-4 py-3 text-sm font-black text-ink shadow-sm transition hover:-translate-y-0.5 hover:bg-[#fff1ed]" type="button" onClick={clearMessages}>
             Chatni tozalash
           </button>
         </div>
 
-        <div className="grid gap-4 p-4 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-          <div className="max-h-[560px] space-y-2 overflow-auto rounded-[26px] bg-panel p-2">
+        <div className="grid gap-4 p-4 xl:grid-cols-[290px_minmax(0,1fr)_330px]">
+          <div className="max-h-[590px] space-y-2 overflow-auto rounded-[28px] border border-white/80 bg-panel p-2 shadow-inner">
             {conversations.map((conversation) => (
               <button
                 key={conversation.id}
-                className={`w-full rounded-[22px] p-4 text-left transition ${activeConversation?.id === conversation.id ? "bg-ink text-white shadow-sm" : "bg-white text-ink hover:bg-mint"}`}
+                className={`w-full rounded-[24px] p-4 text-left transition ${activeConversation?.id === conversation.id ? "bg-ink text-white shadow-sm" : "bg-white/88 text-ink shadow-sm hover:-translate-y-0.5 hover:bg-mint"}`}
                 type="button"
                 onClick={() => selectConversation(conversation.id)}
               >
@@ -833,11 +869,11 @@ function SupportInbox({
             ))}
           </div>
 
-          <div className="grid min-h-[560px] grid-rows-[1fr_auto] overflow-hidden rounded-[26px] bg-panel">
+          <div className="grid min-h-[590px] grid-rows-[1fr_auto] overflow-hidden rounded-[28px] border border-white/80 bg-panel shadow-inner">
             <div className="space-y-3 overflow-auto p-4">
               {activeMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.from === "admin" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[84%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
+                  <div className={`max-w-[84%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
                     <span className={`mb-1 block text-[10px] font-black uppercase ${message.from === "admin" ? "text-mint" : "text-ink/40"}`}>
                       {message.from === "admin" ? "Admin" : "User"}
                     </span>
@@ -850,8 +886,8 @@ function SupportInbox({
                 </div>
               ))}
             </div>
-            <div className="border-t border-black/10 bg-white p-3">
-              <div className="flex gap-2 rounded-[22px] bg-panel p-2">
+            <div className="border-t border-black/10 bg-white/95 p-3">
+              <div className="flex gap-2 rounded-[24px] bg-panel p-2 shadow-inner">
                 <input
                   className="min-w-0 flex-1 bg-transparent px-3 text-sm font-bold text-ink outline-none"
                   value={reply}
@@ -868,8 +904,8 @@ function SupportInbox({
             </div>
           </div>
 
-          <div className="h-fit rounded-[26px] border border-black/10 bg-panel p-4">
-            <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint">
+          <div className="h-fit rounded-[28px] border border-white/80 bg-panel p-4 shadow-sm">
+            <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint shadow-glow">
               <UserRound size={24} />
             </div>
             <h3 className="mt-4 text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Demo mehmon"}</h3>
@@ -880,7 +916,7 @@ function SupportInbox({
               <ProfileStat label="Chat xabarlari" value={String(activeMessages.length)} />
             </div>
             {usageRows.length ? (
-              <div className="mt-4 rounded-[22px] bg-white p-3">
+              <div className="mt-4 rounded-[22px] bg-white/88 p-3 shadow-sm">
                 <span className="text-xs font-black uppercase text-ink/45">Tool statistikasi</span>
                 <div className="mt-3 grid gap-2">
                   {usageRows.slice(0, 5).map((row) => (
@@ -904,7 +940,7 @@ function AdminInput({ label, value, onChange }: { label: string; value: string; 
     <label className="block">
       <span className="mb-2 block text-sm font-black text-ink">{label}</span>
       <input
-        className="w-full rounded-[20px] border border-black/10 bg-panel px-4 py-3 text-sm text-ink shadow-inner outline-none focus:border-mint focus:bg-white"
+        className={inputClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -917,7 +953,7 @@ function AdminTextarea({ label, value, onChange }: { label: string; value: strin
     <label className="block">
       <span className="mb-2 block text-sm font-black text-ink">{label}</span>
       <textarea
-        className="min-h-28 w-full rounded-[20px] border border-black/10 bg-panel px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none focus:border-mint focus:bg-white"
+        className={textareaClass}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
