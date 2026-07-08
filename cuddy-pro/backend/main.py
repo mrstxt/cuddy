@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
-load_dotenv()
+BACKEND_DIR = Path(__file__).resolve().parent
+for env_path in (Path.cwd() / ".env", BACKEND_DIR / ".env", BACKEND_DIR.parent / ".env"):
+    load_dotenv(env_path, override=False)
 
 MAX_FILE_SIZE = 12 * 1024 * 1024
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic"}
@@ -95,6 +97,14 @@ def normalize_username(username: str) -> str:
     return username.strip().lower()
 
 
+def first_env(*names: str) -> str:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
 def public_user(user: dict[str, Any]) -> dict[str, Any]:
     payload = dict(user)
     payload.pop("password", None)
@@ -103,12 +113,45 @@ def public_user(user: dict[str, Any]) -> dict[str, Any]:
 
 def ensure_bootstrap_admins() -> list[dict[str, Any]]:
     admins = read_json_file(ADMINS_FILE, [])
+
+    bootstrap_login = first_env("ADMIN_BOOTSTRAP_USERNAME", "ADMIN_USERNAME", "ADMIN_LOGIN")
+    bootstrap_password = first_env("ADMIN_BOOTSTRAP_PASSWORD", "ADMIN_PASSWORD", "ADMIN_PASS")
+    bootstrap_name = first_env("ADMIN_BOOTSTRAP_NAME", "ADMIN_NAME") or "Cuddy Admin"
     if admins:
+        if bootstrap_login and bootstrap_password:
+            normalized_login = normalize_username(bootstrap_login)
+            updated = False
+            matched = False
+            next_admins = []
+            for admin in admins:
+                if normalize_username(str(admin.get("login", ""))) == normalized_login:
+                    matched = True
+                    merged = {
+                        **admin,
+                        "name": bootstrap_name,
+                        "login": normalized_login,
+                        "password": bootstrap_password,
+                        "role": admin.get("role") or "owner",
+                    }
+                    next_admins.append(merged)
+                    updated = True
+                else:
+                    next_admins.append(admin)
+            if not matched:
+                next_admins.append({
+                    "id": f"admin-{uuid.uuid4().hex[:12]}",
+                    "name": bootstrap_name,
+                    "login": normalized_login,
+                    "password": bootstrap_password,
+                    "role": "owner",
+                    "createdAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+                })
+                updated = True
+            if updated:
+                write_json_file(ADMINS_FILE, next_admins)
+                return next_admins
         return admins
 
-    bootstrap_login = os.getenv("ADMIN_BOOTSTRAP_USERNAME", "").strip()
-    bootstrap_password = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "").strip()
-    bootstrap_name = os.getenv("ADMIN_BOOTSTRAP_NAME", "Cuddy Admin").strip() or "Cuddy Admin"
     if not bootstrap_login or not bootstrap_password:
         return []
 

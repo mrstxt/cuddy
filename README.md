@@ -124,6 +124,7 @@ ADMIN_BOOTSTRAP_NAME=...
 ```
 
 Backend birinchi ishga tushganda `admins.json` bo'sh bo'lsa shu account yaratiladi. Admin panel ichida admin o'z login/parolini o'zgartirishi va yangi admin qo'shishi mumkin.
+Local ishga tushirishda bu qiymatlarni `cuddy-pro/.env` yoki `cuddy-pro/backend/.env` ichiga yozish mumkin. Backend `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME` aliaslarini ham taniydi.
 
 Public sayt deploy:
 
