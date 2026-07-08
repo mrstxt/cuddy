@@ -9,6 +9,7 @@ export type DemoUser = {
   name: string;
   email: string;
   password: string;
+  provider?: "email" | "google";
   createdAt: string;
 };
 
@@ -66,6 +67,33 @@ export function registerUser(name: string, email: string, password: string): Dem
     name: name.trim() || normalizedEmail.split("@")[0] || "Cuddy user",
     email: normalizedEmail,
     password,
+    provider: "email",
+    createdAt: new Date().toISOString()
+  };
+  saveUsers([...users, user]);
+  localStorage.setItem(SESSION_KEY, user.id);
+  localStorage.setItem("cuddy-auth", "true");
+  notifyAuthChange();
+  return user;
+}
+
+export function registerGoogleDemoUser(): DemoUser {
+  const normalizedEmail = "google.demo@cuddy.pro";
+  const users = getUsers();
+  const existingUser = users.find((user) => user.email === normalizedEmail);
+  if (existingUser) {
+    localStorage.setItem(SESSION_KEY, existingUser.id);
+    localStorage.setItem("cuddy-auth", "true");
+    notifyAuthChange();
+    return existingUser;
+  }
+
+  const user: DemoUser = {
+    id: `user-google-${Date.now()}`,
+    name: "Google Demo",
+    email: normalizedEmail,
+    password: "google-demo",
+    provider: "google",
     createdAt: new Date().toISOString()
   };
   saveUsers([...users, user]);

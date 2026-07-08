@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
-import { loginUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
+import { loginUser, registerGoogleDemoUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
 
 type AuthDialogProps = {
   open: boolean;
@@ -47,7 +47,7 @@ export function AuthDialog({ open, onClose, onSuccess }: AuthDialogProps) {
   }
 
   function googleDemo() {
-    registerUser("Google Demo", "google.demo@cuddy.pro", "google-demo");
+    registerGoogleDemoUser();
     finish();
   }
 
@@ -93,7 +93,7 @@ export function AuthDialog({ open, onClose, onSuccess }: AuthDialogProps) {
 
             <div className="mt-5 grid gap-3">
               <button type="button" onClick={googleDemo} className="rounded-full border border-line bg-white px-5 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint">
-                Google demo orqali davom etish
+                Google account orqali davom etish (demo)
               </button>
               {mode === "register" ? (
                 <input className="rounded-[20px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Ism" value={name} onChange={(event) => setName(event.target.value)} />

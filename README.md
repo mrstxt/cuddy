@@ -53,17 +53,17 @@ npm run build
 
 ## Deploy Tavsiyasi
 
-Bu loyiha uchun eng qulay yo'l:
+Hammasini Fly.io'ga joylash varianti:
 
 ```text
-Cloudflare Pages  -> cuddy-pro/ public platforma
-Cloudflare Pages  -> admin/ admin panel
-Python API        -> api.cuddy.uz alohida backend
+Fly.io -> cuddy-pro/          public platforma
+Fly.io -> admin/              admin panel
+Fly.io -> cuddy-pro/backend   Python API
 ```
 
 Firebase Hosting ham static frontend uchun ishlaydi, lekin backend Python/FastAPI bo'lgani uchun
 Firebase Spark rejasida to'liq mos emas. Firebase'da real backend uchun odatda Blaze/Google Cloud
-servislari kerak bo'ladi. Cloudflare Pages static deploy uchun bu repo tuzilmasiga mosroq.
+servislari kerak bo'ladi. Fly.io Python backendni Docker bilan oson deploy qiladi.
 
 Tavsiya qilingan domainlar:
 
@@ -73,16 +73,19 @@ admin.cuddy.uz  -> admin/ admin panel
 api.cuddy.uz    -> cuddy-pro/backend Python API
 ```
 
-Cloudflare Pages:
+Fly.io app configlari:
 
 ```text
-Public root directory: cuddy-pro
-Public build command: npm run build
-Public output: out
+cuddy-pro/fly.toml
+admin/fly.toml
+cuddy-pro/backend/fly.toml
+```
 
-Admin root directory: admin
-Admin build command: npm run build
-Admin output: out
+Fly CLI:
+
+```bash
+brew install flyctl
+fly auth login
 ```
 
 Public env:
@@ -100,52 +103,62 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 PHOTOROOM_API_KEY=...
 PICSART_API_KEY=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 FRONTEND_ORIGINS=https://cuddy.uz,https://admin.cuddy.uz
 ```
 
-Cloudflare API Worker konfiguratsiyasi:
+API talab qiladigan funksiyalar:
+
+- Code Translator va Code Checker: `OPENAI_API_KEY`
+- Background Remover: `PHOTOROOM_API_KEY`
+- Photo Enhancer: `PICSART_API_KEY`
+- Admin state, support chat va limit sync: `NEXT_PUBLIC_API_URL` orqali Python backend
+
+Admin panel demo kirish:
 
 ```text
-cuddy-pro/cloudflare/api-worker/
+login: admin
+parol: cuddy-pro
 ```
 
-Eslatma: hozirgi Python API demo JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
-papka). Production uchun admin state, user, chat va limitlarni haqiqiy databasega ulash kerak.
+Admin panel ichida admin o'z login/parolini o'zgartirishi va yangi admin qo'shishi mumkin.
 
-### Fly.io Backend Varianti
-
-Python API'ni Fly.io'ga joylash Cloudflare Containers'dan sodda bo'lishi mumkin.
-Frontend va admin Cloudflare Pages'da qoladi, backend esa Fly.io'da ishlaydi:
-
-```text
-cuddy.uz        -> Cloudflare Pages / cuddy-pro
-admin.cuddy.uz  -> Cloudflare Pages / admin
-api.cuddy.uz    -> Fly.io / cuddy-pro/backend
-```
-
-Backend config:
-
-```text
-cuddy-pro/backend/fly.toml
-```
-
-Deploy:
+Public sayt deploy:
 
 ```bash
-brew install flyctl
-fly auth login
+cd cuddy-pro
+fly apps create cuddy-pro-web
+fly deploy
+```
+
+Admin panel deploy:
+
+```bash
+cd admin
+fly apps create cuddy-pro-admin
+fly deploy
+```
+
+Backend deploy:
+
+```bash
 cd cuddy-pro/backend
 fly apps create cuddy-pro-api
 fly volumes create cuddy_data --size 1 --region fra
 fly secrets set OPENAI_API_KEY=...
 fly secrets set PHOTOROOM_API_KEY=...
 fly secrets set PICSART_API_KEY=...
+fly secrets set GOOGLE_CLIENT_ID=...
+fly secrets set GOOGLE_CLIENT_SECRET=...
 fly deploy
 ```
 
-Keyin custom domain:
+Custom domainlar:
 
 ```bash
+fly certs add cuddy.uz
+fly certs add admin.cuddy.uz
 fly certs add api.cuddy.uz
 ```
 
@@ -154,6 +167,9 @@ Cloudflare DNS'da Fly.io ko'rsatgan CNAME/A/AAAA yozuvlarini qo'shing.
 Fly.io yangi accountlarda to'liq free hosting emas: usage-based billing va credit card talab
 qilinishi mumkin. Kichik 256MB shared machine auto-stop bilan juda arzon ishlaydi, lekin 0$ deb
 kafolat bermang.
+
+Eslatma: hozirgi Python API demo JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
+papka). Production uchun admin state, user, chat va limitlarni haqiqiy databasega ulash kerak.
 
 ## Tayyor Toollar
 

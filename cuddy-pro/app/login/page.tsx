@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import { getCurrentUser, loginUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
+import { getCurrentUser, loginUser, registerGoogleDemoUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,7 +42,7 @@ export default function LoginPage() {
   }
 
   function googleDemo() {
-    registerUser("Google Demo", "google.demo@cuddy.pro", "google-demo");
+    registerGoogleDemoUser();
     setMessage("Google demo hisob yoqildi.");
     window.setTimeout(() => router.push("/profile"), 450);
   }
@@ -77,7 +77,7 @@ export default function LoginPage() {
               onClick={googleDemo}
               className="rounded-full border border-line bg-white px-5 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint"
             >
-              Google demo orqali davom etish
+              Google account orqali davom etish (demo)
             </button>
             {mode === "register" ? (
               <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Ism" value={name} onChange={(event) => setName(event.target.value)} />

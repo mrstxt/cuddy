@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Bell, Check, CheckCheck, Download, KeyRound, Lock, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
 
-type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats" | "profiles";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats" | "profiles" | "admins";
 
 type EditableTool = {
   slug: string;
@@ -67,14 +67,25 @@ type DemoUser = {
   name: string;
   email: string;
   password?: string;
+  provider?: "email" | "google";
   createdAt: string;
 };
 
 type UserUsage = Record<string, { used: number; limit: number; updatedAt: string }>;
 
+type AdminAccount = {
+  id: string;
+  name: string;
+  login: string;
+  password: string;
+  role: "owner" | "admin";
+  createdAt: string;
+};
+
 const ADMIN_STORAGE_KEY = "cuddy-admin-state";
-const ADMIN_AUTH_KEY = "cuddy-admin-auth";
 const ADMIN_CODE = "cuddy-pro";
+const ADMIN_ACCOUNTS_KEY = "cuddy-admin-accounts";
+const ADMIN_SESSION_KEY = "cuddy-admin-session";
 const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
 const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
 const USERS_KEY = "cuddy-users";
@@ -88,6 +99,28 @@ const textareaClass =
   "min-h-28 w-full rounded-[20px] border border-black/10 bg-white/82 px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
 
 const starterSupportMessages: SupportMessage[] = [];
+
+const defaultAdminAccounts: AdminAccount[] = [
+  {
+    id: "admin-owner",
+    name: "Cuddy Admin",
+    login: "admin",
+    password: ADMIN_CODE,
+    role: "owner",
+    createdAt: "2026-01-01T00:00:00.000Z"
+  }
+];
+
+function readAdminAccounts(): AdminAccount[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ADMIN_ACCOUNTS_KEY) ?? "null") as AdminAccount[] | null;
+    if (saved?.length) return saved;
+  } catch {
+    return defaultAdminAccounts;
+  }
+  localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(defaultAdminAccounts));
+  return defaultAdminAccounts;
+}
 
 const defaultTools: EditableTool[] = [
   {
@@ -249,7 +282,11 @@ const defaultState: AdminState = {
 
 export function AdminPanel() {
   const [authorized, setAuthorized] = useState(false);
-  const [code, setCode] = useState("");
+  const [adminLogin, setAdminLogin] = useState("admin");
+  const [adminPassword, setAdminPassword] = useState("cuddy-pro");
+  const [authError, setAuthError] = useState("");
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(defaultAdminAccounts);
+  const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(null);
   const [tab, setTab] = useState<AdminTab>("analytics");
   const [state, setState] = useState<AdminState>(defaultState);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(starterSupportMessages);
@@ -257,7 +294,12 @@ export function AdminPanel() {
   const [savedAt, setSavedAt] = useState("");
 
   useEffect(() => {
-    setAuthorized(localStorage.getItem(ADMIN_AUTH_KEY) === "true");
+    const accounts = readAdminAccounts();
+    setAdminAccounts(accounts);
+    const sessionId = localStorage.getItem(ADMIN_SESSION_KEY);
+    const sessionAdmin = accounts.find((account) => account.id === sessionId) ?? null;
+    setCurrentAdmin(sessionAdmin);
+    setAuthorized(Boolean(sessionAdmin));
 
     const saved = localStorage.getItem(ADMIN_STORAGE_KEY);
     if (saved) {
@@ -340,10 +382,32 @@ export function AdminPanel() {
   );
 
   function login() {
-    if (code.trim() !== ADMIN_CODE) return;
-    localStorage.setItem(ADMIN_AUTH_KEY, "true");
+    const account = adminAccounts.find(
+      (item) => item.login.trim().toLowerCase() === adminLogin.trim().toLowerCase() && item.password === adminPassword
+    );
+    if (!account) {
+      setAuthError("Login yoki parol noto'g'ri.");
+      return;
+    }
+    localStorage.setItem(ADMIN_SESSION_KEY, account.id);
+    setCurrentAdmin(account);
     setAuthorized(true);
-    setCode("");
+    setAuthError("");
+    setAdminPassword("");
+  }
+
+  function logoutAdmin() {
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    setCurrentAdmin(null);
+    setAuthorized(false);
+    setTab("analytics");
+  }
+
+  function saveAdminAccounts(nextAccounts: AdminAccount[]) {
+    setAdminAccounts(nextAccounts);
+    localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(nextAccounts));
+    const updatedCurrent = nextAccounts.find((account) => account.id === currentAdmin?.id) ?? null;
+    setCurrentAdmin(updatedCurrent);
   }
 
   function save() {
@@ -391,7 +455,7 @@ export function AdminPanel() {
     if (!reason?.trim()) return;
 
     const password = window.prompt("Tasdiqlash uchun admin parolni kiriting.");
-    if (password !== ADMIN_CODE) {
+    if (!currentAdmin || password !== currentAdmin.password) {
       window.alert("Admin parol noto'g'ri. Tool o'chirilmadi.");
       return;
     }
@@ -479,23 +543,30 @@ export function AdminPanel() {
             <span className="mt-6 block text-xs font-black uppercase text-ink/45">Admin panel</span>
             <h1 className="mt-2 text-3xl font-black text-ink sm:text-4xl">Boshqaruvga kirish</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-ink/65">
-              Tool'lar, sayt matnlari va maxfiylik bloklarini boshqarish uchun admin kodni kiriting.
+              Tool'lar, sayt matnlari va maxfiylik bloklarini boshqarish uchun admin login-parolini kiriting.
             </p>
             <div className="mx-auto mt-7 grid max-w-md gap-3">
               <input
                 className="w-full rounded-[24px] border border-black/10 bg-panel px-4 py-4 text-center font-black text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
+                value={adminLogin}
+                onChange={(event) => setAdminLogin(event.target.value)}
+                placeholder="Login"
+              />
+              <input
+                className="w-full rounded-[24px] border border-black/10 bg-panel px-4 py-4 text-center font-black text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") login();
                 }}
-                placeholder="Admin kod"
+                placeholder="Parol"
                 type="password"
               />
               <button className="rounded-full bg-ink px-5 py-3 text-sm font-black uppercase text-mint shadow-sm hover:bg-black" type="button" onClick={login}>
                 Kirish
               </button>
-              <p className="text-center text-xs font-bold text-ink/45">Demo kod: cuddy-pro</p>
+              {authError ? <p className="rounded-[18px] bg-[#fff1ed] px-4 py-3 text-center text-xs font-black text-tomato">{authError}</p> : null}
+              <p className="text-center text-xs font-bold text-ink/45">Demo login: admin | parol: cuddy-pro</p>
             </div>
           </div>
         </section>
@@ -516,6 +587,9 @@ export function AdminPanel() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button className="inline-flex items-center gap-2 rounded-full bg-white/85 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint" type="button" onClick={() => setTab("admins")}>
+                <UserRound size={16} /> {currentAdmin?.name ?? "Admin profil"}
+              </button>
               <button className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-black text-mint shadow-sm hover:bg-black" type="button" onClick={save}>
                 <Save size={16} /> Saqlash
               </button>
@@ -524,6 +598,9 @@ export function AdminPanel() {
               </button>
               <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={reset}>
                 <RotateCcw size={16} /> Reset
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={logoutAdmin}>
+                Chiqish
               </button>
             </div>
           </div>
@@ -547,7 +624,8 @@ export function AdminPanel() {
               { id: "site" as const, label: "Sayt matnlari" },
               { id: "privacy" as const, label: "Maxfiylik" },
               { id: "chats" as const, label: "Chatlar", icon: MessageCircle },
-              { id: "profiles" as const, label: "Profil", icon: UserRound }
+              { id: "profiles" as const, label: "Userlar", icon: UserRound },
+              { id: "admins" as const, label: "Adminlar", icon: KeyRound }
             ].map((item) => (
               <button
                 key={item.id}
@@ -587,6 +665,14 @@ export function AdminPanel() {
             ) : null}
             {tab === "profiles" ? (
               <ProfilesPanel users={users} saveUsers={saveUsers} sendNotification={sendNotification} />
+            ) : null}
+            {tab === "admins" ? (
+              <AdminAccountsPanel
+                accounts={adminAccounts}
+                currentAdmin={currentAdmin}
+                saveAccounts={saveAdminAccounts}
+                logoutAdmin={logoutAdmin}
+              />
             ) : null}
           </section>
         </div>
@@ -1107,6 +1193,141 @@ function ProfilesPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminAccountsPanel({
+  accounts,
+  currentAdmin,
+  saveAccounts,
+  logoutAdmin
+}: {
+  accounts: AdminAccount[];
+  currentAdmin: AdminAccount | null;
+  saveAccounts: (accounts: AdminAccount[]) => void;
+  logoutAdmin: () => void;
+}) {
+  const [newName, setNewName] = useState("Yangi admin");
+  const [newLogin, setNewLogin] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [message, setMessage] = useState("");
+
+  function updateCurrentAdmin(patch: Partial<AdminAccount>) {
+    if (!currentAdmin) return;
+    const nextAccounts = accounts.map((account) => (account.id === currentAdmin.id ? { ...account, ...patch } : account));
+    saveAccounts(nextAccounts);
+    if (patch.password) {
+      setMessage("Parol yangilandi. Keyingi kirishda yangi paroldan foydalaning.");
+    } else {
+      setMessage("Admin profil yangilandi.");
+    }
+  }
+
+  function addAdmin() {
+    const normalizedLogin = newLogin.trim().toLowerCase();
+    if (!normalizedLogin || !newPassword.trim()) {
+      setMessage("Yangi admin uchun login va parol kiriting.");
+      return;
+    }
+    if (accounts.some((account) => account.login.toLowerCase() === normalizedLogin)) {
+      setMessage("Bu login allaqachon mavjud.");
+      return;
+    }
+
+    const nextAdmin: AdminAccount = {
+      id: `admin-${Date.now()}`,
+      name: newName.trim() || normalizedLogin,
+      login: normalizedLogin,
+      password: newPassword,
+      role: "admin",
+      createdAt: new Date().toISOString()
+    };
+    saveAccounts([...accounts, nextAdmin]);
+    setNewName("Yangi admin");
+    setNewLogin("");
+    setNewPassword("");
+    setMessage("Yangi admin qo'shildi.");
+  }
+
+  function removeAdmin(adminId: string) {
+    if (adminId === currentAdmin?.id) {
+      setMessage("O'zingizni shu paneldan o'chira olmaysiz.");
+      return;
+    }
+    const nextAccounts = accounts.filter((account) => account.id !== adminId);
+    saveAccounts(nextAccounts.length ? nextAccounts : defaultAdminAccounts);
+    setMessage("Admin ro'yxatdan olib tashlandi.");
+  }
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <AnalyticsStat label="Adminlar" value={accounts.length} />
+        <AnalyticsStat label="Joriy admin" value={currentAdmin?.login ?? "-"} />
+        <AnalyticsStat label="Rol" value={currentAdmin?.role ?? "-"} />
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className={editorCardClass}>
+          <EditorHeader title="Admin profili" body="Kirgan admin o'z login, parol va profil nomini shu yerdan boshqaradi." />
+          {currentAdmin ? (
+            <div className="grid gap-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <AdminInput label="Admin nomi" value={currentAdmin.name} onChange={(name) => updateCurrentAdmin({ name })} />
+                <AdminInput label="Login" value={currentAdmin.login} onChange={(login) => updateCurrentAdmin({ login: login.trim().toLowerCase() })} />
+                <AdminInput label="Yangi parol" value={currentAdmin.password} onChange={(password) => updateCurrentAdmin({ password })} />
+                <ProfileStat label="Admin ID" value={currentAdmin.id} />
+              </div>
+              <button className="w-fit rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black" type="button" onClick={logoutAdmin}>
+                Profildan chiqish
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-[24px] bg-panel p-5 text-sm font-bold text-ink/55">Admin sessiya topilmadi.</div>
+          )}
+        </div>
+
+        <div className={editorCardClass}>
+          <EditorHeader title="Yangi admin" body="Demo boshqaruv uchun qo'shimcha admin login-parol yarating." />
+          <div className="grid gap-3">
+            <AdminInput label="Ism" value={newName} onChange={setNewName} />
+            <AdminInput label="Login" value={newLogin} onChange={setNewLogin} />
+            <AdminInput label="Parol" value={newPassword} onChange={setNewPassword} />
+            <button className="rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black" type="button" onClick={addAdmin}>
+              Admin qo'shish
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className={dashboardFrameClass}>
+        <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5">
+          <h2 className="text-xl font-black text-ink">Adminlar ro'yxati</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Default kirish: login admin, parol cuddy-pro. Production'da bular backend/database orqali himoyalanadi.</p>
+        </div>
+        <div className="grid gap-3 p-4">
+          {accounts.map((account) => (
+            <article key={account.id} className="grid gap-3 rounded-[26px] border border-white/80 bg-panel p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="min-w-0">
+                <strong className="block truncate text-ink">{account.name}</strong>
+                <p className="mt-1 break-all text-sm font-bold text-ink/55">
+                  {account.login} | {account.role} | {new Date(account.createdAt).toLocaleDateString("uz-UZ")}
+                </p>
+              </div>
+              <button
+                className="w-fit rounded-full bg-white px-4 py-2 text-xs font-black text-ink shadow-sm transition hover:bg-[#fff1ed] hover:text-tomato"
+                type="button"
+                onClick={() => removeAdmin(account.id)}
+              >
+                O'chirish
+              </button>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      {message ? <div className="rounded-[22px] bg-mint p-4 text-sm font-black text-ink">{message}</div> : null}
     </div>
   );
 }
