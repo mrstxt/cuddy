@@ -113,16 +113,17 @@ API talab qiladigan funksiyalar:
 - Code Translator va Code Checker: `OPENAI_API_KEY`
 - Background Remover: `PHOTOROOM_API_KEY`
 - Photo Enhancer: `PICSART_API_KEY`
-- Admin state, support chat va limit sync: `NEXT_PUBLIC_API_URL` orqali Python backend
+- User auth, admin state, support chat va limit sync: `NEXT_PUBLIC_API_URL` orqali Python backend
 
-Admin panel demo kirish:
+Admin panel birinchi kirish uchun backend bootstrap secretlari:
 
 ```text
-login: admin
-parol: cuddy-pro
+ADMIN_BOOTSTRAP_USERNAME=...
+ADMIN_BOOTSTRAP_PASSWORD=...
+ADMIN_BOOTSTRAP_NAME=...
 ```
 
-Admin panel ichida admin o'z login/parolini o'zgartirishi va yangi admin qo'shishi mumkin.
+Backend birinchi ishga tushganda `admins.json` bo'sh bo'lsa shu account yaratiladi. Admin panel ichida admin o'z login/parolini o'zgartirishi va yangi admin qo'shishi mumkin.
 
 Public sayt deploy:
 
@@ -149,8 +150,9 @@ fly volumes create cuddy_data --size 1 --region fra
 fly secrets set OPENAI_API_KEY=...
 fly secrets set PHOTOROOM_API_KEY=...
 fly secrets set PICSART_API_KEY=...
-fly secrets set GOOGLE_CLIENT_ID=...
-fly secrets set GOOGLE_CLIENT_SECRET=...
+fly secrets set ADMIN_BOOTSTRAP_USERNAME=...
+fly secrets set ADMIN_BOOTSTRAP_PASSWORD=...
+fly secrets set ADMIN_BOOTSTRAP_NAME=...
 fly deploy
 ```
 
@@ -168,8 +170,8 @@ Fly.io yangi accountlarda to'liq free hosting emas: usage-based billing va credi
 qilinishi mumkin. Kichik 256MB shared machine auto-stop bilan juda arzon ishlaydi, lekin 0$ deb
 kafolat bermang.
 
-Eslatma: hozirgi Python API demo JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
-papka). Production uchun admin state, user, chat va limitlarni haqiqiy databasega ulash kerak.
+Eslatma: hozirgi Python API JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
+papka). Fly volume bilan data saqlanadi. Katta production bosqichida databasega o'tkazish tavsiya qilinadi.
 
 ## Tayyor Toollar
 
@@ -196,10 +198,4 @@ Admin panel alohida app:
 admin/
 ```
 
-Hozircha demo/localStorage rejimida:
-
-```text
-Demo kod: cuddy-pro
-```
-
-Keyingi production bosqichda admin panel Python API va database bilan ulanadi.
+Admin panel Python API orqali login qiladi. Boshlang'ich admin `.env` yoki Fly secretlaridagi `ADMIN_BOOTSTRAP_*` qiymatlaridan yaratiladi.

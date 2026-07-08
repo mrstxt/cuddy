@@ -64,7 +64,7 @@ export function PrivacyDialog({ className }: PrivacyDialogProps) {
               <section className="rounded-[22px] border border-black/5 bg-[#f7ffdb] p-4 text-ink">
                 <h3 className="font-black text-ink">{privacy?.limitTitle || "Bepul limit"}</h3>
                 <p className="mt-1 text-ink/72">
-                  {privacy?.limitBody || "Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun Google orqali yoki email bilan ro'yxatdan o'tish mumkin."}
+                  {privacy?.limitBody || "Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun email, username va parol orqali ro'yxatdan o'tish mumkin."}
                 </p>
               </section>
             </div>

@@ -4,12 +4,13 @@ import { getAdminLimit } from "@/lib/admin-state";
 export const GUEST_LIMIT = 3;
 export const USER_TOOL_LIMIT = 25;
 
-export type DemoUser = {
+export type UserAccount = {
   id: string;
   name: string;
+  firstName: string;
+  lastName: string;
+  username: string;
   email: string;
-  password: string;
-  provider?: "email" | "google";
   createdAt: string;
 };
 
@@ -25,107 +26,61 @@ const USERS_KEY = "cuddy-users";
 const SESSION_KEY = "cuddy-session";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export function getUsers(): DemoUser[] {
+export function getUsers(): UserAccount[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as DemoUser[];
+    return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as UserAccount[];
   } catch {
     return [];
   }
 }
 
-function saveUsers(users: DemoUser[]) {
+function saveUsers(users: UserAccount[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-function syncUserToBackend(user: DemoUser) {
-  void fetch(`${API_BASE_URL}/api/users/upsert`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(user)
-  }).catch(() => undefined);
 }
 
 function notifyAuthChange() {
   window.dispatchEvent(new CustomEvent("cuddy-auth-change"));
 }
 
-export function getCurrentUser(): DemoUser | null {
+export function getCurrentUser(): UserAccount | null {
   if (typeof window === "undefined") return null;
   const userId = localStorage.getItem(SESSION_KEY);
   if (!userId) return null;
   return getUsers().find((user) => user.id === userId) ?? null;
 }
 
-export function registerUser(name: string, email: string, password: string): DemoUser {
-  const normalizedEmail = email.trim().toLowerCase();
-  const users = getUsers();
-  const existingUser = users.find((user) => user.email === normalizedEmail);
-  if (existingUser) {
-    if (existingUser.password !== password) {
-      throw new Error("Bu email ro'yxatdan o'tgan. Parolni tekshiring.");
-    }
-    localStorage.setItem(SESSION_KEY, existingUser.id);
-    localStorage.setItem("cuddy-auth", "true");
-    syncUserToBackend(existingUser);
-    notifyAuthChange();
-    return existingUser;
+async function authRequest(path: string, body: Record<string, string>): Promise<UserAccount> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json().catch(() => null) as { user?: UserAccount; detail?: string } | null;
+  if (!response.ok || !payload?.user) {
+    throw new Error(payload?.detail || "Auth server bilan bog'lanishda xatolik bo'ldi.");
   }
+  return payload.user;
+}
 
-  const user: DemoUser = {
-    id: `user-${Date.now()}`,
-    name: name.trim() || normalizedEmail.split("@")[0] || "Cuddy user",
-    email: normalizedEmail,
-    password,
-    provider: "email",
-    createdAt: new Date().toISOString()
-  };
-  saveUsers([...users, user]);
+function persistSession(user: UserAccount) {
+  const users = getUsers();
+  const nextUsers = [...users.filter((item) => item.id !== user.id && item.username !== user.username && item.email !== user.email), user];
+  saveUsers(nextUsers);
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
-  syncUserToBackend(user);
   notifyAuthChange();
+}
+
+export async function registerUser(firstName: string, lastName: string, username: string, email: string, password: string): Promise<UserAccount> {
+  const user = await authRequest("/api/users/register", { firstName, lastName, username, email, password });
+  persistSession(user);
   return user;
 }
 
-export function registerGoogleDemoUser(): DemoUser {
-  const normalizedEmail = "google.demo@cuddy.pro";
-  const users = getUsers();
-  const existingUser = users.find((user) => user.email === normalizedEmail);
-  if (existingUser) {
-    localStorage.setItem(SESSION_KEY, existingUser.id);
-    localStorage.setItem("cuddy-auth", "true");
-    syncUserToBackend(existingUser);
-    notifyAuthChange();
-    return existingUser;
-  }
-
-  const user: DemoUser = {
-    id: `user-google-${Date.now()}`,
-    name: "Google Demo",
-    email: normalizedEmail,
-    password: "google-demo",
-    provider: "google",
-    createdAt: new Date().toISOString()
-  };
-  saveUsers([...users, user]);
-  localStorage.setItem(SESSION_KEY, user.id);
-  localStorage.setItem("cuddy-auth", "true");
-  syncUserToBackend(user);
-  notifyAuthChange();
-  return user;
-}
-
-export function loginUser(email: string, password: string): DemoUser {
-  const normalizedEmail = email.trim().toLowerCase();
-  const user = getUsers().find((item) => item.email === normalizedEmail && item.password === password);
-  if (!user) {
-    throw new Error("Email yoki parol noto'g'ri.");
-  }
-  localStorage.setItem(SESSION_KEY, user.id);
-  localStorage.setItem("cuddy-auth", "true");
-  syncUserToBackend(user);
-  notifyAuthChange();
+export async function loginUser(username: string, password: string): Promise<UserAccount> {
+  const user = await authRequest("/api/users/login", { username, password });
+  persistSession(user);
   return user;
 }
 

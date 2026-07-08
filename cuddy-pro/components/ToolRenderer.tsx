@@ -215,7 +215,7 @@ function UsageBanner({ gate }: { gate: UsageGate }) {
       ) : (
         <span className="text-ink/72">
           Har bir funksiya mehmonlar uchun <strong className="text-ink">{GUEST_LIMIT} martagacha bepul</strong>. Qolgan urinish:
-          <strong className="ml-1 text-ink">{gate.remaining}</strong>. Ro'yxatdan o'tgach har funksiya uchun demo limit:
+          <strong className="ml-1 text-ink">{gate.remaining}</strong>. Ro'yxatdan o'tgach har funksiya uchun limit:
           <strong className="ml-1 text-ink">{USER_TOOL_LIMIT}</strong>.
         </span>
       )}

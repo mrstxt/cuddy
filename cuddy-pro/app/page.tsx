@@ -7,12 +7,12 @@ import { TrustCards } from "@/components/TrustCards";
 import { useLanguage } from "@/components/useLanguage";
 import { categoryText, localizeTool } from "@/lib/i18n";
 import { applyAdminToolOverride, getAdminState, getToolDisabledReason, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
-import { getCurrentUser, getToolUsage, type DemoUser } from "@/lib/auth";
+import { getCurrentUser, getToolUsage, type UserAccount } from "@/lib/auth";
 import { orderedCategories, tools } from "@/lib/tools";
 
 export default function Home() {
   const { language, t } = useLanguage();
-  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [adminVersion, setAdminVersion] = useState(0);
 
   const adminState = getAdminState();

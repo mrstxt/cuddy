@@ -88,7 +88,7 @@ export function FloatingSupport() {
 
     return {
       conversationId: guestId,
-      user: { id: guestId, name: "Demo mehmon", email: "guest@cuddy.pro" }
+      user: { id: guestId, name: "Mehmon", email: "guest@cuddy.pro" }
     };
   }
 

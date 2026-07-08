@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import { getCurrentUser, loginUser, registerGoogleDemoUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
+import { getCurrentUser, loginUser, registerUser, USER_TOOL_LIMIT } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("register");
-  const [name, setName] = useState("Demo User");
-  const [email, setEmail] = useState("demo@cuddy.pro");
-  const [password, setPassword] = useState("demo12345");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -20,18 +22,22 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  function submit() {
+  async function submit() {
     try {
-      if (!email.trim() || !password.trim()) {
-        setMessage("Email va parol kiriting.");
+      if (!username.trim() || !password.trim()) {
+        setMessage("Username va parol kiriting.");
         return;
       }
 
       if (mode === "register") {
-        registerUser(name, email, password);
+        if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+          setMessage("Ism, familiya va email kiritilishi kerak.");
+          return;
+        }
+        await registerUser(firstName, lastName, username, email, password);
         setMessage("Ro'yxatdan o'tildi. Profil panelga yo'naltirilyapti...");
       } else {
-        loginUser(email, password);
+        await loginUser(username, password);
         setMessage("Kirish muvaffaqiyatli. Profil panelga yo'naltirilyapti...");
       }
 
@@ -41,20 +47,14 @@ export default function LoginPage() {
     }
   }
 
-  function googleDemo() {
-    registerGoogleDemoUser();
-    setMessage("Google demo hisob yoqildi.");
-    window.setTimeout(() => router.push("/profile"), 450);
-  }
-
   return (
     <main className="mx-auto grid min-h-[70vh] max-w-6xl place-items-center px-4 py-10 sm:px-6 lg:px-8">
       <section className="grid w-full overflow-hidden rounded-[36px] border border-black/10 bg-white/85 shadow-soft backdrop-blur lg:grid-cols-[0.9fr_1.1fr]">
         <div className="bg-ink p-8 text-white sm:p-10">
           <Logo size="md" href="" tone="inverse" />
-          <h1 className="mt-10 text-4xl font-black leading-tight">Demo hisob bilan tool limitlaringizni boshqaring.</h1>
+          <h1 className="mt-10 text-4xl font-black leading-tight">Profil bilan tool limitlaringizni boshqaring.</h1>
           <p className="mt-4 text-sm leading-7 text-white/70">
-            Har bir funksiya mehmonlar uchun 3 marta. Ro'yxatdan o'tgan user uchun demo limit:
+            Har bir funksiya mehmonlar uchun 3 marta. Ro'yxatdan o'tgan user uchun limit:
             <strong className="text-mint"> {USER_TOOL_LIMIT} marta</strong>.
           </p>
         </div>
@@ -72,17 +72,16 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6 grid gap-3">
-            <button
-              type="button"
-              onClick={googleDemo}
-              className="rounded-full border border-line bg-white px-5 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint"
-            >
-              Google account orqali davom etish (demo)
-            </button>
             {mode === "register" ? (
-              <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Ism" value={name} onChange={(event) => setName(event.target.value)} />
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Ism" value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+                  <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Familiya" value={lastName} onChange={(event) => setLastName(event.target.value)} />
+                </div>
+                <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} />
+              </>
             ) : null}
-            <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Username (minimum 6 belgi)" value={username} onChange={(event) => setUsername(event.target.value)} />
             <input className="rounded-[18px] border border-line bg-panel px-4 py-3 outline-none focus:border-ink" placeholder="Parol" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
             <button type="button" onClick={submit} className="rounded-full bg-ink px-5 py-3 text-sm font-black uppercase text-white hover:bg-black">
               {mode === "register" ? "Ro'yxatdan o'tish" : "Login qilish"}

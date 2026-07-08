@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, UserRound } from "lucide-react";
-import { getCurrentUser, logoutUser, type DemoUser } from "@/lib/auth";
+import { getCurrentUser, logoutUser, type UserAccount } from "@/lib/auth";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<DemoUser | null>(null);
+  const [user, setUser] = useState<UserAccount | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -44,6 +44,14 @@ export default function ProfilePage() {
           <p className="mt-2 text-sm font-bold text-ink/60">{user.email}</p>
         </div>
         <div className="grid gap-3 p-6 sm:p-8">
+          <div className="rounded-[24px] bg-panel p-4">
+            <span className="text-xs font-black uppercase text-ink/45">Username</span>
+            <p className="mt-1 text-sm font-bold text-ink">{user.username}</p>
+          </div>
+          <div className="rounded-[24px] bg-panel p-4">
+            <span className="text-xs font-black uppercase text-ink/45">Ism familiya</span>
+            <p className="mt-1 text-sm font-bold text-ink">{user.firstName} {user.lastName}</p>
+          </div>
           <div className="rounded-[24px] bg-panel p-4">
             <span className="text-xs font-black uppercase text-ink/45">Ro'yxatdan o'tgan sana</span>
             <p className="mt-1 text-sm font-bold text-ink">{new Date(user.createdAt).toLocaleString("uz-UZ")}</p>

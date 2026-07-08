@@ -64,12 +64,14 @@ type SupportMessage = {
   };
 };
 
-type DemoUser = {
+type UserAccount = {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
   email: string;
   password?: string;
-  provider?: "email" | "google";
   createdAt: string;
 };
 
@@ -85,7 +87,6 @@ type AdminAccount = {
 };
 
 const ADMIN_STORAGE_KEY = "cuddy-admin-state";
-const ADMIN_CODE = "cuddy-pro";
 const ADMIN_ACCOUNTS_KEY = "cuddy-admin-accounts";
 const ADMIN_SESSION_KEY = "cuddy-admin-session";
 const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
@@ -102,16 +103,7 @@ const textareaClass =
 
 const starterSupportMessages: SupportMessage[] = [];
 
-const defaultAdminAccounts: AdminAccount[] = [
-  {
-    id: "admin-owner",
-    name: "Cuddy Admin",
-    login: "admin",
-    password: ADMIN_CODE,
-    role: "owner",
-    createdAt: "2026-01-01T00:00:00.000Z"
-  }
-];
+const defaultAdminAccounts: AdminAccount[] = [];
 
 function readAdminAccounts(): AdminAccount[] {
   try {
@@ -120,7 +112,6 @@ function readAdminAccounts(): AdminAccount[] {
   } catch {
     return defaultAdminAccounts;
   }
-  localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(defaultAdminAccounts));
   return defaultAdminAccounts;
 }
 
@@ -278,21 +269,21 @@ const defaultState: AdminState = {
       "Og'ir rasm qayta ishlash va kod tekshirish kabi vazifalar xavfsiz server qatlami orqali bajarilishi mumkin. Maxfiy kalitlar frontendga chiqarilmaydi.",
     limitTitle: "Bepul limit",
     limitBody:
-      "Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun Google orqali yoki email bilan ro'yxatdan o'tish mumkin."
+      "Har bir funksiya 3 martagacha bepul ishlatiladi. Davom ettirish uchun email, username va parol orqali ro'yxatdan o'tish mumkin."
   }
 };
 
 export function AdminPanel() {
   const [authorized, setAuthorized] = useState(false);
-  const [adminLogin, setAdminLogin] = useState("admin");
-  const [adminPassword, setAdminPassword] = useState("cuddy-pro");
+  const [adminLogin, setAdminLogin] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(defaultAdminAccounts);
   const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(null);
   const [tab, setTab] = useState<AdminTab>("analytics");
   const [state, setState] = useState<AdminState>(defaultState);
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(starterSupportMessages);
-  const [users, setUsers] = useState<DemoUser[]>([]);
+  const [users, setUsers] = useState<UserAccount[]>([]);
   const [savedAt, setSavedAt] = useState("");
 
   useEffect(() => {
@@ -302,6 +293,18 @@ export function AdminPanel() {
     const sessionAdmin = accounts.find((account) => account.id === sessionId) ?? null;
     setCurrentAdmin(sessionAdmin);
     setAuthorized(Boolean(sessionAdmin));
+
+    fetch(`${API_BASE_URL}/api/admin-accounts`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: AdminAccount[] | null) => {
+        if (!payload) return;
+        setAdminAccounts(payload);
+        localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(payload));
+        const activeAdmin = payload.find((account) => account.id === sessionId) ?? null;
+        setCurrentAdmin(activeAdmin);
+        setAuthorized(Boolean(activeAdmin));
+      })
+      .catch(() => undefined);
 
     const saved = localStorage.getItem(ADMIN_STORAGE_KEY);
     if (saved) {
@@ -325,7 +328,7 @@ export function AdminPanel() {
   useEffect(() => {
     function syncUsers() {
       try {
-        setUsers(JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as DemoUser[]);
+        setUsers(JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as UserAccount[]);
       } catch {
         setUsers([]);
       }
@@ -334,7 +337,7 @@ export function AdminPanel() {
     function syncBackendUsers() {
       fetch(`${API_BASE_URL}/api/users`, { cache: "no-store" })
         .then((response) => (response.ok ? response.json() : null))
-        .then((payload: DemoUser[] | null) => {
+        .then((payload: UserAccount[] | null) => {
           if (!payload?.length) return;
           setUsers(payload);
           localStorage.setItem(USERS_KEY, JSON.stringify(payload));
@@ -397,19 +400,32 @@ export function AdminPanel() {
     [state.tools, supportMessages]
   );
 
-  function login() {
-    const account = adminAccounts.find(
-      (item) => item.login.trim().toLowerCase() === adminLogin.trim().toLowerCase() && item.password === adminPassword
-    );
-    if (!account) {
-      setAuthError("Login yoki parol noto'g'ri.");
-      return;
+  async function login() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: adminLogin, password: adminPassword })
+      });
+      const payload = await response.json().catch(() => null) as { admin?: AdminAccount; detail?: string } | null;
+      if (!response.ok || !payload?.admin) {
+        setAuthError(payload?.detail || "Login yoki parol noto'g'ri.");
+        return;
+      }
+      const account = payload.admin;
+      localStorage.setItem(ADMIN_SESSION_KEY, account.id);
+      setCurrentAdmin(account);
+      setAdminAccounts((current) => {
+        const next = [...current.filter((item) => item.id !== account.id), account];
+        localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(next));
+        return next;
+      });
+      setAuthorized(true);
+      setAuthError("");
+      setAdminPassword("");
+    } catch {
+      setAuthError("Backend API bilan bog'lanib bo'lmadi.");
     }
-    localStorage.setItem(ADMIN_SESSION_KEY, account.id);
-    setCurrentAdmin(account);
-    setAuthorized(true);
-    setAuthError("");
-    setAdminPassword("");
   }
 
   function logoutAdmin() {
@@ -422,6 +438,11 @@ export function AdminPanel() {
   function saveAdminAccounts(nextAccounts: AdminAccount[]) {
     setAdminAccounts(nextAccounts);
     localStorage.setItem(ADMIN_ACCOUNTS_KEY, JSON.stringify(nextAccounts));
+    void fetch(`${API_BASE_URL}/api/admin-accounts`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextAccounts)
+    }).catch(() => undefined);
     const updatedCurrent = nextAccounts.find((account) => account.id === currentAdmin?.id) ?? null;
     setCurrentAdmin(updatedCurrent);
   }
@@ -497,7 +518,7 @@ export function AdminPanel() {
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
-  function saveUsers(nextUsers: DemoUser[]) {
+  function saveUsers(nextUsers: UserAccount[]) {
     setUsers(nextUsers);
     localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
     void fetch(`${API_BASE_URL}/api/users`, {
@@ -573,7 +594,7 @@ export function AdminPanel() {
               <span className="inline-flex rounded-full bg-mint px-4 py-2 text-xs font-black uppercase text-ink shadow-glow">Cuddy Pro</span>
               <h1 className="mt-8 max-w-sm text-4xl font-black leading-tight sm:text-5xl">Admin control center</h1>
               <p className="mt-4 max-w-sm text-sm leading-7 text-white/68">
-                Tool, limit, chat va sayt matnlarini bitta paneldan boshqarish uchun demo admin kirishi.
+                Tool, limit, chat va sayt matnlarini backend orqali boshqarish uchun admin kirishi.
               </p>
             </div>
           </div>
@@ -607,7 +628,7 @@ export function AdminPanel() {
                 Kirish
               </button>
               {authError ? <p className="rounded-[18px] bg-[#fff1ed] px-4 py-3 text-center text-xs font-black text-tomato">{authError}</p> : null}
-              <p className="text-center text-xs font-bold text-ink/45">Demo login: admin | parol: cuddy-pro</p>
+              <p className="text-center text-xs font-bold text-ink/45">Admin login backend `.env` bootstrap sozlamalaridan olinadi.</p>
             </div>
           </div>
         </section>
@@ -737,7 +758,7 @@ function getAnalyticsRows(tools: EditableTool[]) {
     name: tool.name,
     enabled: tool.enabled,
     registeredUsers: 18 + index * 3,
-    demoUsers: 42 + index * 5,
+    guestUsers: 42 + index * 5,
     usage: 120 + index * 37,
     blocked: index % 3 === 0 ? 8 + index : 2 + index,
     trend: index % 2 === 0 ? "yuqori" : "barqaror"
@@ -747,7 +768,7 @@ function getAnalyticsRows(tools: EditableTool[]) {
 function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: ToolLimit[] }) {
   const rows = getAnalyticsRows(tools);
   const registeredTotal = rows.reduce((sum, row) => sum + row.registeredUsers, 0);
-  const demoTotal = rows.reduce((sum, row) => sum + row.demoUsers, 0);
+  const guestTotal = rows.reduce((sum, row) => sum + row.guestUsers, 0);
   const blockedTotal = rows.reduce((sum, row) => sum + row.blocked, 0);
   const topTool = [...rows].sort((a, b) => b.usage - a.usage)[0];
 
@@ -755,7 +776,7 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
     <div className="grid gap-5">
       <div className="grid gap-4 md:grid-cols-4">
         <AnalyticsStat label="Ro'yxatdan o'tganlar" value={registeredTotal} />
-        <AnalyticsStat label="Demo mehmonlar" value={demoTotal} />
+        <AnalyticsStat label="Mehmonlar" value={guestTotal} />
         <AnalyticsStat label="Limit to'siqlari" value={blockedTotal} />
         <AnalyticsStat label="Eng talabgir" value={topTool?.name ?? "-"} />
       </div>
@@ -763,7 +784,7 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
         <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_100%)] p-5">
           <h2 className="text-xl font-black text-ink">Tool talab va limit analitikasi</h2>
           <p className="mt-1 text-sm leading-6 text-ink/60">
-            Demo panel: production’da bu qiymatlar backend eventlari va database orqali real vaqtda to'planadi.
+            Bu panel production’da backend eventlari va database orqali yanada kengaytiriladi.
           </p>
         </div>
         <div className="grid gap-3 p-4">
@@ -776,7 +797,7 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
                   <div>
                     <strong className="text-ink">{row.name}</strong>
                     <p className="text-sm text-ink/55">
-                      Registered: {row.registeredUsers} | Demo: {row.demoUsers} | Blocked: {row.blocked}
+                      Registered: {row.registeredUsers} | Guest: {row.guestUsers} | Blocked: {row.blocked}
                     </p>
                   </div>
                   <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${row.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
@@ -987,7 +1008,7 @@ function SupportInbox({
   clearMessages
 }: {
   messages: SupportMessage[];
-  users: DemoUser[];
+  users: UserAccount[];
   saveMessages: (messages: SupportMessage[]) => void;
   sendReply: (text: string, conversationId: string) => void;
   clearMessages: () => void;
@@ -1053,7 +1074,7 @@ function SupportInbox({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <strong className="block text-sm">{conversation.user?.name ?? "Demo mehmon"}</strong>
+                    <strong className="block text-sm">{conversation.user?.name ?? "Mehmon"}</strong>
                     <span className={`mt-1 block truncate text-xs ${activeConversation?.id === conversation.id ? "text-white/55" : "text-ink/45"}`}>{conversation.user?.email ?? conversation.id}</span>
                   </div>
                   {conversation.unread ? <span className="grid h-6 min-w-6 place-items-center rounded-full bg-tomato px-2 text-xs font-black text-white">{conversation.unread}</span> : null}
@@ -1116,10 +1137,10 @@ function SupportInbox({
             <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint shadow-glow">
               <UserRound size={24} />
             </div>
-            <h3 className="mt-4 break-words text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Demo mehmon"}</h3>
+            <h3 className="mt-4 break-words text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Mehmon"}</h3>
             <p className="mt-1 break-all text-sm font-bold text-ink/55">{activeConversation?.user?.email ?? activeUser?.email ?? "guest@cuddy.pro"}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
-              <ProfileStat label="Account" value={activeUser ? "Registered" : "Guest/Demo"} />
+              <ProfileStat label="Account" value={activeUser ? "Registered" : "Guest"} />
               <ProfileStat label="User ID" value={activeConversation?.user?.id ?? activeConversation?.id ?? "-"} />
               <ProfileStat label="Chat xabarlari" value={String(activeMessages.length)} />
             </div>
@@ -1150,7 +1171,7 @@ function NotificationsPanel({
   sendBroadcastNotification
 }: {
   messages: SupportMessage[];
-  users: DemoUser[];
+  users: UserAccount[];
   recipientsCount: number;
   sendBroadcastNotification: (title: string, text: string, scheduledAt?: string) => number;
 }) {
@@ -1264,8 +1285,8 @@ function ProfilesPanel({
   users,
   saveUsers
 }: {
-  users: DemoUser[];
-  saveUsers: (users: DemoUser[]) => void;
+  users: UserAccount[];
+  saveUsers: (users: UserAccount[]) => void;
 }) {
   const [activeUserId, setActiveUserId] = useState(users[0]?.id ?? "");
   const activeUser = users.find((user) => user.id === activeUserId) ?? users[0];
@@ -1277,7 +1298,7 @@ function ProfilesPanel({
     }
   }, [activeUserId, users]);
 
-  function updateUser(patch: Partial<DemoUser>) {
+  function updateUser(patch: Partial<UserAccount>) {
     if (!activeUser) return;
     saveUsers(users.map((user) => (user.id === activeUser.id ? { ...user, ...patch } : user)));
   }
@@ -1311,13 +1332,13 @@ function ProfilesPanel({
         </div>
 
         <div className={editorCardClass}>
-          <EditorHeader title="Profil va parol boshqaruvi" body="Demo profillarni tahrirlash va user statistikalarini ko'rish." />
+          <EditorHeader title="Profil boshqaruvi" body="Ro'yxatdan o'tgan profillar va user statistikalarini ko'rish." />
           {activeUser ? (
             <div className="grid gap-4">
               <div className="grid gap-3 md:grid-cols-2">
                 <AdminInput label="Ism" value={activeUser.name} onChange={(name) => updateUser({ name })} />
+                <AdminInput label="Username" value={activeUser.username ?? ""} onChange={(username) => updateUser({ username })} />
                 <AdminInput label="Email" value={activeUser.email} onChange={(email) => updateUser({ email })} />
-                <AdminInput label="Parol" value={activeUser.password ?? ""} onChange={(password) => updateUser({ password })} />
                 <ProfileStat label="User ID" value={activeUser.id} />
               </div>
 
@@ -1434,7 +1455,7 @@ function AdminAccountsPanel({
         </div>
 
         <div className={editorCardClass}>
-          <EditorHeader title="Yangi admin" body="Demo boshqaruv uchun qo'shimcha admin login-parol yarating." />
+          <EditorHeader title="Yangi admin" body="Qo'shimcha admin login-parol yarating." />
           <div className="grid gap-3">
             <AdminInput label="Ism" value={newName} onChange={setNewName} />
             <AdminInput label="Login" value={newLogin} onChange={setNewLogin} />
@@ -1449,7 +1470,7 @@ function AdminAccountsPanel({
       <div className={dashboardFrameClass}>
         <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5">
           <h2 className="text-xl font-black text-ink">Adminlar ro'yxati</h2>
-          <p className="mt-1 text-sm leading-6 text-ink/60">Default kirish: login admin, parol cuddy-pro. Production'da bular backend/database orqali himoyalanadi.</p>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Adminlar backenddagi runtime data orqali boshqariladi. Boshlang'ich admin `.env` bootstrap orqali yaratiladi.</p>
         </div>
         <div className="grid gap-3 p-4">
           {accounts.map((account) => (

@@ -6,11 +6,11 @@ import { AuthDialog } from "@/components/AuthDialog";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLanguage } from "@/components/useLanguage";
-import { getCurrentUser, logoutUser, type DemoUser } from "@/lib/auth";
+import { getCurrentUser, logoutUser, type UserAccount } from "@/lib/auth";
 
 export function SiteHeader() {
   const { t } = useLanguage();
-  const [user, setUser] = useState<DemoUser | null>(null);
+  const [user, setUser] = useState<UserAccount | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -87,9 +87,9 @@ export function SiteHeader() {
                   <div className="mb-4 grid h-16 w-16 place-items-center rounded-[24px] bg-ink text-mint">
                     <UserRound size={28} />
                   </div>
-                  <span className="text-xs font-black uppercase text-ink/45">Cuddy Pro Profile</span>
+                <span className="text-xs font-black uppercase text-ink/45">Cuddy Pro Profile</span>
                   <h2 className="mt-2 text-3xl font-black text-ink">{user.name}</h2>
-                  <p className="mt-2 text-sm font-bold text-ink/60">{user.email}</p>
+                  <p className="mt-2 text-sm font-bold text-ink/60">@{user.username} | {user.email}</p>
                 </div>
                 <button
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/70 text-ink hover:bg-mint"
@@ -109,8 +109,8 @@ export function SiteHeader() {
                 </p>
               </div>
               <div className="rounded-[24px] bg-panel p-4">
-                <span className="text-xs font-black uppercase text-ink/45">Hisob turi</span>
-                <p className="mt-1 text-sm font-bold text-ink">Demo registered account</p>
+                <span className="text-xs font-black uppercase text-ink/45">Ism familiya</span>
+                <p className="mt-1 text-sm font-bold text-ink">{user.firstName} {user.lastName}</p>
               </div>
               <button
                 className="inline-flex w-fit items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black"

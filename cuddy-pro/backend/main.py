@@ -1,4 +1,5 @@
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
@@ -43,10 +44,37 @@ class CodeTranslatePayload(BaseModel):
     max_lines: int = 150
 
 
+class UserRegisterPayload(BaseModel):
+    firstName: str
+    lastName: str
+    username: str
+    email: str
+    password: str
+
+
+class UserLoginPayload(BaseModel):
+    username: str
+    password: str
+
+
+class AdminLoginPayload(BaseModel):
+    login: str
+    password: str
+
+
+class AdminAccountPayload(BaseModel):
+    id: Optional[str] = None
+    name: str
+    login: str
+    password: str
+    role: str = "admin"
+
+
 DATA_DIR = Path(os.getenv("CUDDY_DATA_DIR", Path(__file__).resolve().parent / "data"))
 ADMIN_STATE_FILE = DATA_DIR / "admin-state.json"
 SUPPORT_FILE = DATA_DIR / "support-messages.json"
 USERS_FILE = DATA_DIR / "users.json"
+ADMINS_FILE = DATA_DIR / "admins.json"
 
 
 def read_json_file(path: Path, fallback: Any) -> Any:
@@ -61,6 +89,43 @@ def read_json_file(path: Path, fallback: Any) -> Any:
 def write_json_file(path: Path, payload: Any) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     path.write_text(__import__("json").dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def normalize_username(username: str) -> str:
+    return username.strip().lower()
+
+
+def public_user(user: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(user)
+    payload.pop("password", None)
+    return payload
+
+
+def ensure_bootstrap_admins() -> list[dict[str, Any]]:
+    admins = read_json_file(ADMINS_FILE, [])
+    if admins:
+        return admins
+
+    bootstrap_login = os.getenv("ADMIN_BOOTSTRAP_USERNAME", "").strip()
+    bootstrap_password = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "").strip()
+    bootstrap_name = os.getenv("ADMIN_BOOTSTRAP_NAME", "Cuddy Admin").strip() or "Cuddy Admin"
+    if not bootstrap_login or not bootstrap_password:
+        return []
+
+    admin = {
+        "id": f"admin-{uuid.uuid4().hex[:12]}",
+        "name": bootstrap_name,
+        "login": normalize_username(bootstrap_login),
+        "password": bootstrap_password,
+        "role": "owner",
+        "createdAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+    }
+    write_json_file(ADMINS_FILE, [admin])
+    return [admin]
+
+
+def public_admin(admin: dict[str, Any]) -> dict[str, Any]:
+    return dict(admin)
 
 
 def count_code_lines(code: str) -> int:
@@ -112,30 +177,117 @@ async def save_support_messages(payload: list[dict[str, Any]]) -> JSONResponse:
 
 @app.get("/api/users")
 async def get_users() -> JSONResponse:
-    return JSONResponse(read_json_file(USERS_FILE, []))
+    users = read_json_file(USERS_FILE, [])
+    return JSONResponse([public_user(user) for user in users])
 
 
 @app.put("/api/users")
 async def save_users(payload: list[dict[str, Any]]) -> JSONResponse:
-    write_json_file(USERS_FILE, payload)
-    return JSONResponse({"ok": True, "users": payload})
+    existing_users = read_json_file(USERS_FILE, [])
+    merged_users: list[dict[str, Any]] = []
+    for user in payload:
+        current = next(
+            (
+                item for item in existing_users
+                if item.get("id") == user.get("id")
+                or str(item.get("email", "")).lower() == str(user.get("email", "")).lower()
+                or normalize_username(str(item.get("username", ""))) == normalize_username(str(user.get("username", "")))
+            ),
+            {},
+        )
+        merged = {**current, **user}
+        if not merged.get("password") and current.get("password"):
+            merged["password"] = current["password"]
+        merged_users.append(merged)
+    write_json_file(USERS_FILE, merged_users)
+    return JSONResponse({"ok": True, "users": [public_user(user) for user in merged_users]})
 
 
-@app.post("/api/users/upsert")
-async def upsert_user(payload: dict[str, Any]) -> JSONResponse:
-    user_id = payload.get("id")
-    email = payload.get("email")
-    if not user_id or not email:
-        raise HTTPException(status_code=400, detail="User id va email kerak.")
+@app.post("/api/users/register")
+async def register_user(payload: UserRegisterPayload) -> JSONResponse:
+    first_name = payload.firstName.strip()
+    last_name = payload.lastName.strip()
+    username = normalize_username(payload.username)
+    email = payload.email.strip().lower()
+    password = payload.password
 
     users = read_json_file(USERS_FILE, [])
-    next_users = [
-        user for user in users
-        if user.get("id") != user_id and str(user.get("email", "")).lower() != str(email).lower()
-    ]
-    next_users.append(payload)
-    write_json_file(USERS_FILE, next_users)
-    return JSONResponse({"ok": True, "user": payload})
+    if len(username) < 6:
+        raise HTTPException(status_code=400, detail="Username minimum 6 ta belgidan iborat bo'lishi kerak.")
+    if not first_name or not last_name:
+        raise HTTPException(status_code=400, detail="Ism va familiya kiritilishi kerak.")
+    if "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Email noto'g'ri kiritilgan.")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Parol minimum 6 ta belgidan iborat bo'lishi kerak.")
+    if any(normalize_username(str(user.get("username", ""))) == username for user in users):
+        raise HTTPException(status_code=409, detail="Bu username band.")
+    if any(str(user.get("email", "")).lower() == email for user in users):
+        raise HTTPException(status_code=409, detail="Bu email bilan account mavjud.")
+
+    user = {
+        "id": f"user-{uuid.uuid4().hex[:12]}",
+        "firstName": first_name,
+        "lastName": last_name,
+        "name": f"{first_name} {last_name}",
+        "username": username,
+        "email": email,
+        "password": password,
+        "createdAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+    }
+    write_json_file(USERS_FILE, [*users, user])
+    return JSONResponse({"ok": True, "user": public_user(user)})
+
+
+@app.post("/api/users/login")
+async def login_user(payload: UserLoginPayload) -> JSONResponse:
+    username = normalize_username(payload.username)
+    users = read_json_file(USERS_FILE, [])
+    user = next((item for item in users if normalize_username(str(item.get("username", ""))) == username and item.get("password") == payload.password), None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Username yoki parol noto'g'ri.")
+    return JSONResponse({"ok": True, "user": public_user(user)})
+
+
+@app.get("/api/admin-accounts")
+async def get_admin_accounts() -> JSONResponse:
+    admins = ensure_bootstrap_admins()
+    return JSONResponse([public_admin(admin) for admin in admins])
+
+
+@app.post("/api/admin-login")
+async def admin_login(payload: AdminLoginPayload) -> JSONResponse:
+    admins = ensure_bootstrap_admins()
+    login = normalize_username(payload.login)
+    admin = next((item for item in admins if normalize_username(str(item.get("login", ""))) == login and item.get("password") == payload.password), None)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Admin login yoki parol noto'g'ri.")
+    return JSONResponse({"ok": True, "admin": public_admin(admin)})
+
+
+@app.put("/api/admin-accounts")
+async def save_admin_accounts(payload: list[AdminAccountPayload]) -> JSONResponse:
+    next_admins: list[dict[str, Any]] = []
+    seen_logins: set[str] = set()
+    for item in payload:
+        login = normalize_username(item.login)
+        if len(login) < 4:
+            raise HTTPException(status_code=400, detail="Admin login minimum 4 ta belgidan iborat bo'lishi kerak.")
+        if not item.password:
+            raise HTTPException(status_code=400, detail="Admin parol kiritilishi kerak.")
+        if login in seen_logins:
+            raise HTTPException(status_code=409, detail="Admin login takrorlangan.")
+        seen_logins.add(login)
+        next_admins.append({
+            "id": item.id or f"admin-{uuid.uuid4().hex[:12]}",
+            "name": item.name.strip() or login,
+            "login": login,
+            "password": item.password,
+            "role": item.role if item.role in {"owner", "admin"} else "admin",
+            "createdAt": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        })
+    write_json_file(ADMINS_FILE, next_admins)
+    return JSONResponse({"ok": True, "admins": [public_admin(admin) for admin in next_admins]})
 
 
 @app.post("/api/bg-remover")
@@ -262,8 +414,8 @@ async def code_translator(payload: CodeTranslatePayload) -> JSONResponse:
             {
                 "error": "OPENAI_API_KEY sozlanmagan.",
                 "result": (
-                    f"// Demo mode: {payload.source} -> {payload.target}\n"
-                    "// API key qo'shilgach, bu yerda tarjima natijasi chiqadi.\n\n"
+                    f"// API key sozlanmagan: {payload.source} -> {payload.target}\n"
+                    "// OPENAI_API_KEY qo'shilgach, bu yerda tarjima natijasi chiqadi.\n\n"
                     f"{payload.code}\n\n"
                     "Qisqa tushuntirish:\n"
                     "- Kod 150 qator limit ichida qabul qilindi.\n"
@@ -331,7 +483,7 @@ async def code_checker(payload: CodeTranslatePayload) -> JSONResponse:
             {
                 "error": "OPENAI_API_KEY sozlanmagan.",
                 "result": (
-                    f"Demo mode: {payload.source} kodi qabul qilindi.\n\n"
+                    f"OPENAI_API_KEY sozlanmagan. {payload.source} kodi qabul qilindi.\n\n"
                     "API key qo'shilgach, bu funksiya koddagi sintaksis xatolari, runtime risklar, "
                     "mantiqiy muammolar va yaxshilash tavsiyalarini alohida ro'yxat qilib beradi."
                 ),
