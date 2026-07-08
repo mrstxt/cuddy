@@ -8,6 +8,7 @@ export type AdminToolOverride = {
   action: string;
   category: string;
   enabled: boolean;
+  disabledReason?: string;
 };
 
 export type AdminToolLimit = {
@@ -80,6 +81,11 @@ export function applyAdminToolOverride(tool: Tool, state = getAdminState()): Too
 export function isToolEnabled(slug: string, state = getAdminState()) {
   const override = state.tools?.find((item) => item.slug === slug);
   return override?.enabled ?? true;
+}
+
+export function getToolDisabledReason(slug: string, state = getAdminState()) {
+  const override = state.tools?.find((item) => item.slug === slug);
+  return override?.disabledReason || "Admin tomonidan vaqtincha yopilgan.";
 }
 
 export function getAdminLimit(slug: string, signedIn: boolean, state = getAdminState()) {

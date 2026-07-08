@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCheck, Headphones, Send, X } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -8,6 +8,7 @@ type SupportMessage = {
   id: string;
   conversationId: string;
   from: "user" | "admin";
+  kind?: "chat" | "notification";
   text: string;
   createdAt: string;
   status?: "sent" | "read";
@@ -21,17 +22,10 @@ type SupportMessage = {
 const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
 const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
 const SUPPORT_GUEST_KEY = "cuddy-support-guest";
+const SUPPORT_LAST_SEEN_KEY = "cuddy-support-last-seen";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const starterMessages: SupportMessage[] = [
-  {
-    id: "welcome",
-    conversationId: "global",
-    from: "admin",
-    text: "Salom! Cuddy Pro support. Savolingizni yozing, admin javobini shu chatda ko'rasiz.",
-    createdAt: new Date().toISOString()
-  }
-];
+const starterMessages: SupportMessage[] = [];
 
 export function FloatingSupport() {
   const [open, setOpen] = useState(false);
@@ -39,12 +33,27 @@ export function FloatingSupport() {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>(starterMessages);
 
-  function getCurrentConversationId() {
+  const getCurrentConversationId = useCallback(function getCurrentConversationId() {
     const user = getCurrentUser();
     if (user) return user.id;
     if (typeof window === "undefined") return "global";
     return localStorage.getItem(SUPPORT_GUEST_KEY) ?? "global";
-  }
+  }, []);
+
+  const getLastSeenKey = useCallback(function getLastSeenKey(conversationId = getCurrentConversationId()) {
+    return `${SUPPORT_LAST_SEEN_KEY}-${conversationId}`;
+  }, [getCurrentConversationId]);
+
+  const updateUnread = useCallback(function updateUnread(nextMessages: SupportMessage[]) {
+    const conversationId = getCurrentConversationId();
+    const lastSeen = Number(localStorage.getItem(getLastSeenKey(conversationId)) ?? "0");
+    const nextUnread = nextMessages.filter((message) => {
+      const messageTime = new Date(message.createdAt).getTime();
+      return message.conversationId === conversationId && message.from === "admin" && messageTime > lastSeen;
+    }).length;
+    setUnread(nextUnread);
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(nextUnread));
+  }, [getCurrentConversationId, getLastSeenKey]);
 
   function getConversationProfile() {
     const user = getCurrentUser();
@@ -71,11 +80,12 @@ export function FloatingSupport() {
     function syncSupport() {
       try {
         const savedMessages = JSON.parse(localStorage.getItem(SUPPORT_MESSAGES_KEY) ?? "null") as SupportMessage[] | null;
-        setMessages(savedMessages?.length ? savedMessages : starterMessages);
-        setUnread(Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "1"));
+        const nextMessages = savedMessages?.length ? savedMessages : starterMessages;
+        setMessages(nextMessages);
+        updateUnread(nextMessages);
       } catch {
         setMessages(starterMessages);
-        setUnread(1);
+        setUnread(0);
       }
     }
 
@@ -86,6 +96,7 @@ export function FloatingSupport() {
           if (!payload?.length) return;
           setMessages(payload);
           localStorage.setItem(SUPPORT_MESSAGES_KEY, JSON.stringify(payload));
+          updateUnread(payload);
         })
         .catch(() => undefined);
     }
@@ -101,7 +112,7 @@ export function FloatingSupport() {
       window.removeEventListener("storage", syncSupport);
       window.removeEventListener("cuddy-support-change", syncSupport);
     };
-  }, []);
+  }, [updateUnread]);
 
   function saveMessages(nextMessages: SupportMessage[]) {
     setMessages(nextMessages);
@@ -117,6 +128,7 @@ export function FloatingSupport() {
   function openChat() {
     setOpen(true);
     setUnread(0);
+    localStorage.setItem(getLastSeenKey(), String(Date.now()));
     localStorage.setItem(SUPPORT_UNREAD_KEY, "0");
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
@@ -140,7 +152,7 @@ export function FloatingSupport() {
   const currentConversationId = getCurrentConversationId();
   const visibleMessages = messages.filter((message) => {
     const conversationId = message.conversationId ?? "global";
-    return conversationId === "global" || conversationId === currentConversationId;
+    return conversationId === currentConversationId;
   });
 
   return (
@@ -180,13 +192,19 @@ export function FloatingSupport() {
             </div>
 
             <div className="flex-1 space-y-3 overflow-auto bg-panel p-4">
+              {!visibleMessages.length ? (
+                <div className="rounded-[24px] bg-white p-4 text-sm font-bold leading-6 text-ink/62 shadow-sm">
+                  Salom! Savolingizni yozing, admin javobi va bildirishnomalar shu chatda chiqadi.
+                </div>
+              ) : null}
               {visibleMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.from === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[82%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${
-                      message.from === "user" ? "bg-ink text-white" : "bg-white text-ink"
+                      message.from === "user" ? "bg-ink text-white" : message.kind === "notification" ? "bg-mint text-ink" : "bg-white text-ink"
                     }`}
                   >
+                    {message.kind === "notification" ? <span className="mb-1 block text-[10px] font-black uppercase text-ink/50">Bildirishnoma</span> : null}
                     <p>{message.text}</p>
                     <span className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${message.from === "user" ? "justify-end text-white/55" : "text-ink/40"}`}>
                       {new Date(message.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Lock, Sparkles } from "lucide-react";
 import { TrustCards } from "@/components/TrustCards";
 import { useLanguage } from "@/components/useLanguage";
 import { categoryText, localizeTool } from "@/lib/i18n";
-import { applyAdminToolOverride, getAdminState, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
+import { applyAdminToolOverride, getAdminState, getToolDisabledReason, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
 import { getCurrentUser, getToolUsage, type DemoUser } from "@/lib/auth";
 import { orderedCategories, tools } from "@/lib/tools";
 
@@ -17,7 +17,7 @@ export default function Home() {
 
   const adminState = getAdminState();
   const siteContent = adminState.site;
-  const visibleTools = tools.filter((tool) => isToolEnabled(tool.slug, adminState)).map((tool) => applyAdminToolOverride(tool, adminState));
+  const displayTools = tools.map((tool) => applyAdminToolOverride(tool, adminState));
 
   useEffect(() => {
     function syncProfile() {
@@ -39,7 +39,7 @@ export default function Home() {
   void adminVersion;
 
   const usageByTool = currentUser
-    ? Object.fromEntries(visibleTools.map((tool) => [tool.slug, getToolUsage(currentUser.id, tool.slug)]))
+    ? Object.fromEntries(displayTools.map((tool) => [tool.slug, getToolUsage(currentUser.id, tool.slug)]))
     : {};
 
   return (
@@ -77,29 +77,34 @@ export default function Home() {
 
           <div className="rounded-[32px] border border-black/10 bg-white/75 p-3 shadow-soft backdrop-blur">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-3">
-              {visibleTools.slice(0, 5).map((tool, index) => {
+              {displayTools.slice(0, 5).map((tool, index) => {
                 const displayTool = localizeTool(tool, language);
                 const Icon = tool.icon;
-                return (
-                  <Link
-                    key={tool.slug}
-                    href={`/tools/${tool.slug}`}
-                    className={`group rounded-[26px] border border-white/70 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-soft ${
-                      index === 0 ? `${tool.accent.card} sm:col-span-2` : tool.accent.card
-                    }`}
-                  >
+                const enabled = isToolEnabled(tool.slug, adminState);
+                const cardClass = `group rounded-[26px] border border-white/70 p-5 shadow-sm transition ${
+                  index === 0 ? `${tool.accent.card} sm:col-span-2` : tool.accent.card
+                } ${enabled ? "hover:-translate-y-1 hover:shadow-soft" : "cursor-not-allowed opacity-55 grayscale"}`;
+                const content = (
+                  <>
                     <div className="flex items-start justify-between gap-3">
                       <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[18px] ${tool.accent.icon}`}>
                         <Icon size={21} />
                       </span>
-                      <ArrowRight size={18} className="text-ink/40 transition group-hover:translate-x-1 group-hover:text-ink" />
+                      {enabled ? <ArrowRight size={18} className="text-ink/40 transition group-hover:translate-x-1 group-hover:text-ink" /> : <Lock size={18} className="text-ink/45" />}
                     </div>
                     <strong className="mt-4 block text-xl font-black text-ink">{displayTool.name}</strong>
-                    <span className="mt-2 block text-sm leading-6 text-ink/68">{displayTool.outcome}</span>
-                    <span className={`mt-4 inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-sm font-black ${tool.accent.pill}`}>
-                      {displayTool.action}
+                    <span className="mt-2 block text-sm leading-6 text-ink/68">{enabled ? displayTool.outcome : getToolDisabledReason(tool.slug, adminState)}</span>
+                    <span className={`mt-4 inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-sm font-black ${enabled ? tool.accent.pill : "bg-white/75 text-ink/55"}`}>
+                      {enabled ? displayTool.action : "Qulfda"}
                     </span>
-                  </Link>
+                  </>
+                );
+                return (
+                  enabled ? (
+                    <Link key={tool.slug} href={`/tools/${tool.slug}`} className={cardClass}>{content}</Link>
+                  ) : (
+                    <div key={tool.slug} className={cardClass} aria-disabled="true">{content}</div>
+                  )
                 );
               })}
             </div>
@@ -122,12 +127,12 @@ export default function Home() {
                 </p>
               </div>
               <span className="w-fit rounded-full bg-mint px-3 py-2 text-xs font-black uppercase text-ink shadow-glow">
-                {visibleTools.length} functions
+                {displayTools.length} functions
               </span>
             </div>
 
             {orderedCategories
-              .filter((category) => visibleTools.some((tool) => tool.category === category))
+              .filter((category) => displayTools.some((tool) => tool.category === category))
               .map((category) => (
                 <div key={category} id={category.toLowerCase()} className="scroll-mt-24 py-6 first:pt-0">
                   <div className="mb-4">
@@ -136,35 +141,42 @@ export default function Home() {
                     <p className="mt-1 text-sm leading-6 text-ink/65">{categoryText[language][category].description}</p>
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-4">
-                    {visibleTools.filter((tool) => tool.category === category).map((tool) => {
+                    {displayTools.filter((tool) => tool.category === category).map((tool) => {
                       const displayTool = localizeTool(tool, language);
                       const usage = usageByTool[tool.slug];
                       const Icon = tool.icon;
-                      return (
-                        <Link
-                          key={tool.slug}
-                          href={`/tools/${tool.slug}`}
-                          className={`group flex min-h-60 flex-col rounded-[28px] border border-white/80 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-soft ${tool.accent.card}`}
-                        >
+                      const enabled = isToolEnabled(tool.slug, adminState);
+                      const cardClass = `group flex min-h-60 flex-col rounded-[28px] border border-white/80 p-5 shadow-sm transition ${tool.accent.card} ${
+                        enabled ? "hover:-translate-y-1 hover:shadow-soft" : "cursor-not-allowed opacity-55 grayscale"
+                      }`;
+                      const content = (
+                        <>
                           <div className="flex items-start justify-between gap-3">
                             <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-[18px] ${tool.accent.icon}`}>
                               <Icon size={22} />
                             </span>
-                            <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase ${tool.accent.pill}`}>
-                              {displayTool.action}
+                            <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase ${enabled ? tool.accent.pill : "bg-white/75 text-ink/55"}`}>
+                              {enabled ? displayTool.action : "Qulfda"}
                             </span>
                           </div>
                           <strong className="mt-5 block text-lg text-ink">{displayTool.name}</strong>
                           <span className="mt-2 block text-sm leading-6 text-ink/68">{displayTool.description}</span>
-                          <span className={`mt-4 flex items-start gap-2 rounded-[18px] p-3 text-sm leading-5 ${tool.accent.outcome}`}>
-                            <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ink" />
-                            {displayTool.outcome}
+                          <span className={`mt-4 flex items-start gap-2 rounded-[18px] p-3 text-sm leading-5 ${enabled ? tool.accent.outcome : "bg-white/75 text-ink/62"}`}>
+                            {enabled ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-ink" /> : <Lock size={17} className="mt-0.5 shrink-0 text-ink" />}
+                            {enabled ? displayTool.outcome : getToolDisabledReason(tool.slug, adminState)}
                           </span>
                           <span className="mt-auto inline-flex w-fit items-center gap-2 pt-5 text-xs font-black uppercase text-ink">
-                            {displayTool.action} <ArrowRight size={14} className="transition group-hover:translate-x-1" />
+                            {enabled ? displayTool.action : "Vaqtincha yopiq"} {enabled ? <ArrowRight size={14} className="transition group-hover:translate-x-1" /> : <Lock size={14} />}
                           </span>
-                          {usage ? <LimitBadge used={usage.used} limit={usage.limit} /> : null}
-                        </Link>
+                          {enabled && usage ? <LimitBadge used={usage.used} limit={usage.limit} /> : null}
+                        </>
+                      );
+                      return (
+                        enabled ? (
+                          <Link key={tool.slug} href={`/tools/${tool.slug}`} className={cardClass}>{content}</Link>
+                        ) : (
+                          <div key={tool.slug} className={cardClass} aria-disabled="true">{content}</div>
+                        )
                       );
                     })}
                   </div>

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LayoutGrid } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Lock } from "lucide-react";
 import ToolRenderer from "@/components/ToolRenderer";
-import { applyAdminToolOverride, getAdminState, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
+import { applyAdminToolOverride, getAdminState, getToolDisabledReason, isToolEnabled, syncAdminStateFromBackend } from "@/lib/admin-state";
 import { getTool } from "@/lib/tools";
 
 export function ToolPageClient({ slug }: { slug: string }) {
@@ -31,6 +31,7 @@ export function ToolPageClient({ slug }: { slug: string }) {
   const adminState = getAdminState();
   const displayTool = applyAdminToolOverride(tool, adminState);
   const enabled = isToolEnabled(tool.slug, adminState);
+  const disabledReason = getToolDisabledReason(tool.slug, adminState);
   const Icon = tool.icon;
 
   return (
@@ -76,8 +77,11 @@ export function ToolPageClient({ slug }: { slug: string }) {
           <ToolRenderer slug={tool.slug} />
         ) : (
           <div className="rounded-[34px] border border-black/10 bg-white/85 p-6 text-center shadow-soft">
-            <h2 className="text-2xl font-black text-ink">Tool vaqtincha yopilgan</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/65">Admin panelda yangilanish ishlari ketayotgani uchun bu funksiya hozircha ishlamaydi.</p>
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-[24px] bg-ink text-mint shadow-glow">
+              <Lock size={26} />
+            </div>
+            <h2 className="mt-4 text-2xl font-black text-ink">Tool vaqtincha yopilgan</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-ink/65">{disabledReason}</p>
           </div>
         )}
       </section>

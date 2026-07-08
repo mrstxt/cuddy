@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Check, CheckCheck, Download, KeyRound, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
+import { BarChart3, Bell, Check, CheckCheck, Download, KeyRound, Lock, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
 
-type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats" | "profiles";
 
 type EditableTool = {
   slug: string;
@@ -13,6 +13,7 @@ type EditableTool = {
   action: string;
   category: string;
   enabled: boolean;
+  disabledReason?: string;
 };
 
 type ToolLimit = {
@@ -50,6 +51,7 @@ type SupportMessage = {
   id: string;
   conversationId?: string;
   from: "user" | "admin";
+  kind?: "chat" | "notification";
   text: string;
   createdAt: string;
   status?: "sent" | "read";
@@ -64,6 +66,7 @@ type DemoUser = {
   id: string;
   name: string;
   email: string;
+  password?: string;
   createdAt: string;
 };
 
@@ -83,15 +86,7 @@ const inputClass =
 const textareaClass =
   "min-h-28 w-full rounded-[20px] border border-black/10 bg-white/82 px-4 py-3 text-sm leading-6 text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
 
-const starterSupportMessages: SupportMessage[] = [
-  {
-    id: "welcome",
-    conversationId: "global",
-    from: "admin",
-    text: "Salom! Cuddy Pro support. Savolingizni yozing, admin javobini shu chatda ko'rasiz.",
-    createdAt: new Date().toISOString()
-  }
-];
+const starterSupportMessages: SupportMessage[] = [];
 
 const defaultTools: EditableTool[] = [
   {
@@ -385,6 +380,24 @@ export function AdminPanel() {
     }));
   }
 
+  function confirmToolStatusChange(index: number, enabled: boolean) {
+    if (enabled) {
+      updateTool(index, { enabled: true, disabledReason: "" });
+      return;
+    }
+
+    const reason = window.prompt("Tool nima sababdan vaqtincha o'chirilyapti? Bu sabab saytda userlarga ko'rinadi.");
+    if (!reason?.trim()) return;
+
+    const password = window.prompt("Tasdiqlash uchun admin parolni kiriting.");
+    if (password !== ADMIN_CODE) {
+      window.alert("Admin parol noto'g'ri. Tool o'chirilmadi.");
+      return;
+    }
+
+    updateTool(index, { enabled: false, disabledReason: reason.trim() });
+  }
+
   function updateLimit(index: number, patch: Partial<ToolLimit>) {
     setState((current) => ({
       ...current,
@@ -403,17 +416,40 @@ export function AdminPanel() {
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
+  function saveUsers(nextUsers: DemoUser[]) {
+    setUsers(nextUsers);
+    localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
+    window.dispatchEvent(new CustomEvent("cuddy-auth-change"));
+  }
+
   function sendSupportReply(text: string, conversationId: string) {
     const lastUserMessage = [...supportMessages].reverse().find((message) => (message.conversationId ?? "global") === conversationId && message.from === "user");
     const reply: SupportMessage = {
       id: `admin-${Date.now()}`,
       conversationId,
       from: "admin",
+      kind: "chat",
       text,
       createdAt: new Date().toISOString(),
       user: lastUserMessage?.user
     };
     saveSupportMessages([...supportMessages, reply]);
+    const unread = Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "0") + 1;
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(unread));
+    window.dispatchEvent(new CustomEvent("cuddy-support-change"));
+  }
+
+  function sendNotification(user: DemoUser, text: string) {
+    const notification: SupportMessage = {
+      id: `notification-${Date.now()}`,
+      conversationId: user.id,
+      from: "admin",
+      kind: "notification",
+      text,
+      createdAt: new Date().toISOString(),
+      user: { id: user.id, name: user.name, email: user.email }
+    };
+    saveSupportMessages([...supportMessages, notification]);
     const unread = Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "0") + 1;
     localStorage.setItem(SUPPORT_UNREAD_KEY, String(unread));
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
@@ -508,7 +544,8 @@ export function AdminPanel() {
               { id: "tools" as const, label: "Tool'lar" },
               { id: "site" as const, label: "Sayt matnlari" },
               { id: "privacy" as const, label: "Maxfiylik" },
-              { id: "chats" as const, label: "Chatlar", icon: MessageCircle }
+              { id: "chats" as const, label: "Chatlar", icon: MessageCircle },
+              { id: "profiles" as const, label: "Profil", icon: UserRound }
             ].map((item) => (
               <button
                 key={item.id}
@@ -530,7 +567,7 @@ export function AdminPanel() {
           <section className="min-w-0">
             {tab === "analytics" ? <AnalyticsPanel tools={state.tools} limits={state.limits} /> : null}
             {tab === "limits" ? <LimitEditor tools={state.tools} limits={state.limits} updateLimit={updateLimit} /> : null}
-            {tab === "tools" ? <ToolsEditor tools={state.tools} updateTool={updateTool} /> : null}
+            {tab === "tools" ? <ToolsEditor tools={state.tools} updateTool={updateTool} confirmToolStatusChange={confirmToolStatusChange} /> : null}
             {tab === "site" ? (
               <SiteEditor site={state.site} setSite={(site) => setState((current) => ({ ...current, site }))} />
             ) : null}
@@ -545,6 +582,9 @@ export function AdminPanel() {
                 sendReply={sendSupportReply}
                 clearMessages={() => saveSupportMessages(starterSupportMessages)}
               />
+            ) : null}
+            {tab === "profiles" ? (
+              <ProfilesPanel users={users} saveUsers={saveUsers} sendNotification={sendNotification} />
             ) : null}
           </section>
         </div>
@@ -674,10 +714,12 @@ function LimitEditor({
 
 function ToolsEditor({
   tools: editableTools,
-  updateTool
+  updateTool,
+  confirmToolStatusChange
 }: {
   tools: EditableTool[];
   updateTool: (index: number, patch: Partial<EditableTool>) => void;
+  confirmToolStatusChange: (index: number, enabled: boolean) => void;
 }) {
   return (
     <div className="grid gap-4">
@@ -689,15 +731,22 @@ function ToolsEditor({
               <h2 className="text-xl font-black text-ink">{tool.name}</h2>
             </div>
             <label className={`flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-black shadow-sm ${tool.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
-              <input checked={tool.enabled} type="checkbox" onChange={(event) => updateTool(index, { enabled: event.target.checked })} />
+              <input checked={tool.enabled} type="checkbox" onChange={(event) => confirmToolStatusChange(index, event.target.checked)} />
               {tool.enabled ? "Faol" : "Vaqtincha yopiq"}
             </label>
           </div>
+          {!tool.enabled ? (
+            <div className="mb-4 flex items-start gap-3 rounded-[22px] bg-[#fff1ed] p-4 text-sm font-bold leading-6 text-tomato">
+              <Lock size={18} className="mt-0.5 shrink-0" />
+              <span>{tool.disabledReason || "Sabab kiritilmagan."}</span>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             <AdminInput label="Nomi" value={tool.name} onChange={(value) => updateTool(index, { name: value })} />
             <AdminInput label="Action" value={tool.action} onChange={(value) => updateTool(index, { action: value })} />
             <AdminTextarea label="Tavsif" value={tool.description} onChange={(value) => updateTool(index, { description: value })} />
             <AdminTextarea label="Natija matni" value={tool.outcome} onChange={(value) => updateTool(index, { outcome: value })} />
+            <AdminTextarea label="Yopilgan holat sababi" value={tool.disabledReason ?? ""} onChange={(value) => updateTool(index, { disabledReason: value })} />
           </div>
         </article>
       ))}
@@ -750,6 +799,7 @@ function getConversationRows(messages: SupportMessage[]) {
 
   messages.forEach((message) => {
     const id = message.conversationId ?? "global";
+    if (id === "global") return;
     const current = map.get(id);
     map.set(id, {
       id,
@@ -826,6 +876,12 @@ function SupportInbox({
     setReply("");
   }
 
+  useEffect(() => {
+    if (!activeConversation && conversations[0]) {
+      setActiveId(conversations[0].id);
+    }
+  }, [activeConversation, conversations]);
+
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 md:grid-cols-3">
@@ -850,7 +906,7 @@ function SupportInbox({
 
         <div className="grid gap-4 p-4 xl:grid-cols-[290px_minmax(0,1fr)_330px]">
           <div className="max-h-[590px] space-y-2 overflow-auto rounded-[28px] border border-white/80 bg-panel p-2 shadow-inner">
-            {conversations.map((conversation) => (
+            {conversations.length ? conversations.map((conversation) => (
               <button
                 key={conversation.id}
                 className={`w-full rounded-[24px] p-4 text-left transition ${activeConversation?.id === conversation.id ? "bg-ink text-white shadow-sm" : "bg-white/88 text-ink shadow-sm hover:-translate-y-0.5 hover:bg-mint"}`}
@@ -866,7 +922,11 @@ function SupportInbox({
                 </div>
                 <p className={`mt-3 line-clamp-2 text-xs leading-5 ${activeConversation?.id === conversation.id ? "text-white/65" : "text-ink/55"}`}>{conversation.lastText}</p>
               </button>
-            ))}
+            )) : (
+              <div className="rounded-[24px] bg-white/85 p-5 text-sm font-bold leading-6 text-ink/55">
+                Hali userlardan chat kelmagan.
+              </div>
+            )}
           </div>
 
           <div className="grid min-h-[590px] grid-rows-[1fr_auto] overflow-hidden rounded-[28px] border border-white/80 bg-panel shadow-inner">
@@ -929,6 +989,110 @@ function SupportInbox({
               </div>
             ) : null}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfilesPanel({
+  users,
+  saveUsers,
+  sendNotification
+}: {
+  users: DemoUser[];
+  saveUsers: (users: DemoUser[]) => void;
+  sendNotification: (user: DemoUser, text: string) => void;
+}) {
+  const [activeUserId, setActiveUserId] = useState(users[0]?.id ?? "");
+  const [notification, setNotification] = useState("Platformada siz uchun yangi bildirishnoma bor.");
+  const activeUser = users.find((user) => user.id === activeUserId) ?? users[0];
+  const usageRows = activeUser ? getUserUsageRows(activeUser.id) : [];
+
+  useEffect(() => {
+    if (!activeUserId && users[0]) {
+      setActiveUserId(users[0].id);
+    }
+  }, [activeUserId, users]);
+
+  function updateUser(patch: Partial<DemoUser>) {
+    if (!activeUser) return;
+    saveUsers(users.map((user) => (user.id === activeUser.id ? { ...user, ...patch } : user)));
+  }
+
+  function submitNotification() {
+    if (!activeUser || !notification.trim()) return;
+    sendNotification(activeUser, notification.trim());
+    setNotification("");
+  }
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <AnalyticsStat label="Userlar" value={users.length} />
+        <AnalyticsStat label="Faol profil" value={activeUser?.name ?? "-"} />
+        <AnalyticsStat label="Tool usage" value={usageRows.reduce((sum, row) => sum + row.used, 0)} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className={editorCardClass}>
+          <EditorHeader title="Userlar" body="Ro'yxatdan o'tgan profillar ro'yxati." />
+          <div className="grid max-h-[560px] gap-2 overflow-auto">
+            {users.length ? users.map((user) => (
+              <button
+                key={user.id}
+                className={`rounded-[24px] p-4 text-left text-sm shadow-sm transition ${activeUser?.id === user.id ? "bg-ink text-white" : "bg-panel text-ink hover:bg-mint"}`}
+                type="button"
+                onClick={() => setActiveUserId(user.id)}
+              >
+                <strong className="block">{user.name}</strong>
+                <span className={`mt-1 block text-xs ${activeUser?.id === user.id ? "text-white/55" : "text-ink/50"}`}>{user.email}</span>
+              </button>
+            )) : (
+              <div className="rounded-[24px] bg-panel p-5 text-sm font-bold text-ink/55">Hali user ro'yxatdan o'tmagan.</div>
+            )}
+          </div>
+        </div>
+
+        <div className={editorCardClass}>
+          <EditorHeader title="Profil va parol boshqaruvi" body="Demo profillarni tahrirlash va userga bildirishnoma yuborish." />
+          {activeUser ? (
+            <div className="grid gap-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <AdminInput label="Ism" value={activeUser.name} onChange={(name) => updateUser({ name })} />
+                <AdminInput label="Email" value={activeUser.email} onChange={(email) => updateUser({ email })} />
+                <AdminInput label="Parol" value={activeUser.password ?? ""} onChange={(password) => updateUser({ password })} />
+                <ProfileStat label="User ID" value={activeUser.id} />
+              </div>
+
+              <div className="rounded-[26px] bg-panel p-4">
+                <span className="text-xs font-black uppercase text-ink/45">Bildirishnoma yuborish</span>
+                <textarea
+                  className={`${textareaClass} mt-3`}
+                  value={notification}
+                  onChange={(event) => setNotification(event.target.value)}
+                  placeholder="Userga yuboriladigan xabar..."
+                />
+                <button className="mt-3 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black" type="button" onClick={submitNotification}>
+                  <Bell size={16} /> Bildirishnoma yuborish
+                </button>
+              </div>
+
+              <div className="rounded-[26px] bg-panel p-4">
+                <span className="text-xs font-black uppercase text-ink/45">Tool statistikasi</span>
+                <div className="mt-3 grid gap-2">
+                  {usageRows.length ? usageRows.map((row) => (
+                    <div key={row.slug} className="flex items-center justify-between gap-3 rounded-[18px] bg-white/85 px-4 py-3 text-sm font-bold text-ink">
+                      <span>{row.slug}</span>
+                      <span>{row.used}/{row.limit}</span>
+                    </div>
+                  )) : <p className="text-sm font-bold text-ink/55">Bu user hali tool ishlatmagan.</p>}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[24px] bg-panel p-5 text-sm font-bold text-ink/55">Profil tanlanmagan.</div>
+          )}
         </div>
       </div>
     </div>

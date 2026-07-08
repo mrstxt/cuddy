@@ -12,3 +12,4 @@ dist
 **/out
 coverage
 *.log
+cuddy-pro/backend/data/
