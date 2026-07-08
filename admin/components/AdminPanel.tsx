@@ -432,6 +432,7 @@ export function AdminPanel() {
       kind: "chat",
       text,
       createdAt: new Date().toISOString(),
+      status: "sent",
       user: lastUserMessage?.user
     };
     saveSupportMessages([...supportMessages, reply]);
@@ -941,7 +942,7 @@ function SupportInbox({
                     <p>{message.text}</p>
                     <span className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${message.from === "admin" ? "justify-end text-white/50" : "text-ink/40"}`}>
                       {new Date(message.createdAt).toLocaleString("uz-UZ", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
-                      {message.from === "user" ? message.status === "read" ? <CheckCheck size={13} /> : <Check size={13} /> : null}
+                      {message.from === "admin" ? message.status === "read" ? <CheckCheck size={13} /> : <Check size={13} /> : null}
                     </span>
                   </div>
                 </div>

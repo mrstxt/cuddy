@@ -130,6 +130,11 @@ export function FloatingSupport() {
     setUnread(0);
     localStorage.setItem(getLastSeenKey(), String(Date.now()));
     localStorage.setItem(SUPPORT_UNREAD_KEY, "0");
+    const conversationId = getCurrentConversationId();
+    const nextMessages = messages.map((message) =>
+      message.conversationId === conversationId && message.from === "admin" ? { ...message, status: "read" as const } : message
+    );
+    saveMessages(nextMessages);
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
