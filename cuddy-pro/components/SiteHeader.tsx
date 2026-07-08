@@ -74,7 +74,7 @@ export function SiteHeader() {
         onClose={() => setAuthOpen(false)}
         onSuccess={() => {
           setUser(getCurrentUser());
-          setProfileOpen(true);
+          setProfileOpen(false);
         }}
       />
 
