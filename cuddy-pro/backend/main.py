@@ -46,6 +46,7 @@ class CodeTranslatePayload(BaseModel):
 DATA_DIR = Path(os.getenv("CUDDY_DATA_DIR", Path(__file__).resolve().parent / "data"))
 ADMIN_STATE_FILE = DATA_DIR / "admin-state.json"
 SUPPORT_FILE = DATA_DIR / "support-messages.json"
+USERS_FILE = DATA_DIR / "users.json"
 
 
 def read_json_file(path: Path, fallback: Any) -> Any:
@@ -107,6 +108,34 @@ async def get_support_messages() -> JSONResponse:
 async def save_support_messages(payload: list[dict[str, Any]]) -> JSONResponse:
     write_json_file(SUPPORT_FILE, payload)
     return JSONResponse({"ok": True, "messages": payload})
+
+
+@app.get("/api/users")
+async def get_users() -> JSONResponse:
+    return JSONResponse(read_json_file(USERS_FILE, []))
+
+
+@app.put("/api/users")
+async def save_users(payload: list[dict[str, Any]]) -> JSONResponse:
+    write_json_file(USERS_FILE, payload)
+    return JSONResponse({"ok": True, "users": payload})
+
+
+@app.post("/api/users/upsert")
+async def upsert_user(payload: dict[str, Any]) -> JSONResponse:
+    user_id = payload.get("id")
+    email = payload.get("email")
+    if not user_id or not email:
+        raise HTTPException(status_code=400, detail="User id va email kerak.")
+
+    users = read_json_file(USERS_FILE, [])
+    next_users = [
+        user for user in users
+        if user.get("id") != user_id and str(user.get("email", "")).lower() != str(email).lower()
+    ]
+    next_users.append(payload)
+    write_json_file(USERS_FILE, next_users)
+    return JSONResponse({"ok": True, "user": payload})
 
 
 @app.post("/api/bg-remover")

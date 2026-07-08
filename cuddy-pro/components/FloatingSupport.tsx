@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, CheckCheck, Headphones, Send, X } from "lucide-react";
+import { Bell, Check, CheckCheck, Headphones, Send, X } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 
 type SupportMessage = {
@@ -9,8 +9,10 @@ type SupportMessage = {
   conversationId: string;
   from: "user" | "admin";
   kind?: "chat" | "notification";
+  title?: string;
   text: string;
   createdAt: string;
+  scheduledAt?: string;
   status?: "sent" | "read";
   user?: {
     id: string;
@@ -23,13 +25,16 @@ const SUPPORT_MESSAGES_KEY = "cuddy-support-messages";
 const SUPPORT_UNREAD_KEY = "cuddy-support-unread";
 const SUPPORT_GUEST_KEY = "cuddy-support-guest";
 const SUPPORT_LAST_SEEN_KEY = "cuddy-support-last-seen";
+const NOTIFICATION_LAST_SEEN_KEY = "cuddy-notification-last-seen";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const starterMessages: SupportMessage[] = [];
 
 export function FloatingSupport() {
   const [open, setOpen] = useState(false);
-  const [unread, setUnread] = useState(1);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [notificationUnread, setNotificationUnread] = useState(0);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>(starterMessages);
 
@@ -44,16 +49,27 @@ export function FloatingSupport() {
     return `${SUPPORT_LAST_SEEN_KEY}-${conversationId}`;
   }, [getCurrentConversationId]);
 
+  const getNotificationLastSeenKey = useCallback(function getNotificationLastSeenKey(conversationId = getCurrentConversationId()) {
+    return `${NOTIFICATION_LAST_SEEN_KEY}-${conversationId}`;
+  }, [getCurrentConversationId]);
+
   const updateUnread = useCallback(function updateUnread(nextMessages: SupportMessage[]) {
     const conversationId = getCurrentConversationId();
-    const lastSeen = Number(localStorage.getItem(getLastSeenKey(conversationId)) ?? "0");
-    const nextUnread = nextMessages.filter((message) => {
+    const chatLastSeen = Number(localStorage.getItem(getLastSeenKey(conversationId)) ?? "0");
+    const notificationLastSeen = Number(localStorage.getItem(getNotificationLastSeenKey(conversationId)) ?? "0");
+    const now = Date.now();
+    const nextChatUnread = nextMessages.filter((message) => {
       const messageTime = new Date(message.createdAt).getTime();
-      return message.conversationId === conversationId && message.from === "admin" && messageTime > lastSeen;
+      return message.conversationId === conversationId && message.from === "admin" && message.kind !== "notification" && messageTime <= now && messageTime > chatLastSeen;
     }).length;
-    setUnread(nextUnread);
-    localStorage.setItem(SUPPORT_UNREAD_KEY, String(nextUnread));
-  }, [getCurrentConversationId, getLastSeenKey]);
+    const nextNotificationUnread = nextMessages.filter((message) => {
+      const messageTime = new Date(message.createdAt).getTime();
+      return message.conversationId === conversationId && message.from === "admin" && message.kind === "notification" && messageTime <= now && messageTime > notificationLastSeen;
+    }).length;
+    setChatUnread(nextChatUnread);
+    setNotificationUnread(nextNotificationUnread);
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(nextChatUnread + nextNotificationUnread));
+  }, [getCurrentConversationId, getLastSeenKey, getNotificationLastSeenKey]);
 
   function getConversationProfile() {
     const user = getCurrentUser();
@@ -85,7 +101,8 @@ export function FloatingSupport() {
         updateUnread(nextMessages);
       } catch {
         setMessages(starterMessages);
-        setUnread(0);
+        setChatUnread(0);
+        setNotificationUnread(0);
       }
     }
 
@@ -127,12 +144,25 @@ export function FloatingSupport() {
 
   function openChat() {
     setOpen(true);
-    setUnread(0);
+    setChatUnread(0);
     localStorage.setItem(getLastSeenKey(), String(Date.now()));
-    localStorage.setItem(SUPPORT_UNREAD_KEY, "0");
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(notificationUnread));
     const conversationId = getCurrentConversationId();
     const nextMessages = messages.map((message) =>
-      message.conversationId === conversationId && message.from === "admin" ? { ...message, status: "read" as const } : message
+      message.conversationId === conversationId && message.from === "admin" && message.kind !== "notification" ? { ...message, status: "read" as const } : message
+    );
+    saveMessages(nextMessages);
+    window.dispatchEvent(new CustomEvent("cuddy-support-change"));
+  }
+
+  function openNotifications() {
+    setNotificationOpen(true);
+    setNotificationUnread(0);
+    localStorage.setItem(getNotificationLastSeenKey(), String(Date.now()));
+    localStorage.setItem(SUPPORT_UNREAD_KEY, String(chatUnread));
+    const conversationId = getCurrentConversationId();
+    const nextMessages = messages.map((message) =>
+      message.conversationId === conversationId && message.from === "admin" && message.kind === "notification" ? { ...message, status: "read" as const } : message
     );
     saveMessages(nextMessages);
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
@@ -157,11 +187,36 @@ export function FloatingSupport() {
   const currentConversationId = getCurrentConversationId();
   const visibleMessages = messages.filter((message) => {
     const conversationId = message.conversationId ?? "global";
-    return conversationId === currentConversationId;
+    return conversationId === currentConversationId && message.kind !== "notification";
   });
+  const visibleNotifications = messages
+    .filter((message) => {
+      const conversationId = message.conversationId ?? "global";
+      return conversationId === currentConversationId && message.kind === "notification" && new Date(message.createdAt).getTime() <= Date.now();
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <>
+      {visibleNotifications.length ? (
+        <button
+          className={`fixed bottom-[88px] right-5 z-40 grid h-12 w-12 place-items-center rounded-[20px] bg-mint text-ink shadow-soft ring-4 ring-white/80 transition hover:-translate-y-1 sm:bottom-[104px] sm:right-7 ${
+            notificationUnread > 0 ? "support-float" : ""
+          }`}
+          type="button"
+          onClick={openNotifications}
+          aria-label="Bildirishnomalarni ochish"
+          title="Bildirishnomalar"
+        >
+          <Bell size={21} />
+          {notificationUnread > 0 ? (
+            <span className="absolute -right-2 -top-2 grid h-7 min-w-7 place-items-center rounded-full bg-tomato px-2 text-xs font-black text-white ring-4 ring-white">
+              {notificationUnread}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
+
       <button
         className="support-float fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-[22px] bg-ink text-mint shadow-soft ring-4 ring-white/70 transition hover:-translate-y-1 hover:bg-black sm:bottom-7 sm:right-7"
         type="button"
@@ -170,9 +225,9 @@ export function FloatingSupport() {
         title="Support"
       >
         <Headphones size={24} />
-        {unread > 0 ? (
+        {chatUnread > 0 ? (
           <span className="absolute -right-2 -top-2 grid h-7 min-w-7 place-items-center rounded-full bg-tomato px-2 text-xs font-black text-white ring-4 ring-white">
-            {unread}
+            {chatUnread}
           </span>
         ) : null}
       </button>
@@ -199,17 +254,16 @@ export function FloatingSupport() {
             <div className="flex-1 space-y-3 overflow-auto bg-panel p-4">
               {!visibleMessages.length ? (
                 <div className="rounded-[24px] bg-white p-4 text-sm font-bold leading-6 text-ink/62 shadow-sm">
-                  Salom! Savolingizni yozing, admin javobi va bildirishnomalar shu chatda chiqadi.
+                  Salom! Savolingizni yozing, admin javobi shu chatda chiqadi. Bildirishnomalar support iconkasi tepasidagi alohida tugmada ko'rinadi.
                 </div>
               ) : null}
               {visibleMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.from === "user" ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[82%] rounded-[22px] px-4 py-3 text-sm leading-6 shadow-sm ${
-                      message.from === "user" ? "bg-ink text-white" : message.kind === "notification" ? "bg-mint text-ink" : "bg-white text-ink"
+                      message.from === "user" ? "bg-ink text-white" : "bg-white text-ink"
                     }`}
                   >
-                    {message.kind === "notification" ? <span className="mb-1 block text-[10px] font-black uppercase text-ink/50">Bildirishnoma</span> : null}
                     <p>{message.text}</p>
                     <span className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${message.from === "user" ? "justify-end text-white/55" : "text-ink/40"}`}>
                       {new Date(message.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}
@@ -240,6 +294,45 @@ export function FloatingSupport() {
                   <Send size={17} />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {notificationOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/74 px-4 py-6 backdrop-blur-sm">
+          <div className="ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-[34px] border border-white/70 bg-white shadow-soft">
+            <div className="flex items-start justify-between gap-4 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5">
+              <div>
+                <span className="text-xs font-black uppercase text-ink/45">Cuddy Pro</span>
+                <h2 className="mt-1 text-2xl font-black text-ink">Bildirishnomalar</h2>
+                <p className="mt-1 text-sm leading-6 text-ink/62">Admin yuborgan yangiliklar va eslatmalar shu yerda turadi.</p>
+              </div>
+              <button
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/75 text-ink hover:bg-mint"
+                type="button"
+                onClick={() => setNotificationOpen(false)}
+                aria-label="Bildirishnomalarni yopish"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-auto bg-panel p-4">
+              {visibleNotifications.length ? visibleNotifications.map((notification) => (
+                <article key={notification.id} className="rounded-[24px] bg-white p-4 text-ink shadow-sm">
+                  <span className="mb-2 inline-flex rounded-full bg-mint px-3 py-1 text-[10px] font-black uppercase text-ink">Bildirishnoma</span>
+                  <h3 className="break-words text-lg font-black">{notification.title ?? "Yangi xabar"}</h3>
+                  <p className="mt-2 break-words text-sm leading-6 text-ink/65">{notification.text}</p>
+                  <span className="mt-3 block text-xs font-bold text-ink/40">
+                    {new Date(notification.createdAt).toLocaleString("uz-UZ", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}
+                  </span>
+                </article>
+              )) : (
+                <div className="rounded-[24px] bg-white p-4 text-sm font-bold leading-6 text-ink/62 shadow-sm">
+                  Hozircha yangi bildirishnoma yo'q.
+                </div>
+              )}
             </div>
           </div>
         </div>

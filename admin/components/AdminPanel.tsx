@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Bell, Check, CheckCheck, Download, KeyRound, Lock, MessageCircle, RotateCcw, Save, Settings2, SlidersHorizontal, UserRound } from "lucide-react";
 
-type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats" | "profiles" | "admins";
+type AdminTab = "analytics" | "limits" | "tools" | "site" | "privacy" | "chats" | "notifications" | "profiles" | "admins";
 
 type EditableTool = {
   slug: string;
@@ -52,8 +52,10 @@ type SupportMessage = {
   conversationId?: string;
   from: "user" | "admin";
   kind?: "chat" | "notification";
+  title?: string;
   text: string;
   createdAt: string;
+  scheduledAt?: string;
   status?: "sent" | "read";
   user?: {
     id: string;
@@ -329,10 +331,24 @@ export function AdminPanel() {
       }
     }
 
+    function syncBackendUsers() {
+      fetch(`${API_BASE_URL}/api/users`, { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: DemoUser[] | null) => {
+          if (!payload?.length) return;
+          setUsers(payload);
+          localStorage.setItem(USERS_KEY, JSON.stringify(payload));
+        })
+        .catch(() => undefined);
+    }
+
     syncUsers();
+    syncBackendUsers();
+    const interval = window.setInterval(syncBackendUsers, 8000);
     window.addEventListener("storage", syncUsers);
     window.addEventListener("cuddy-auth-change", syncUsers);
     return () => {
+      window.clearInterval(interval);
       window.removeEventListener("storage", syncUsers);
       window.removeEventListener("cuddy-auth-change", syncUsers);
     };
@@ -484,6 +500,11 @@ export function AdminPanel() {
   function saveUsers(nextUsers: DemoUser[]) {
     setUsers(nextUsers);
     localStorage.setItem(USERS_KEY, JSON.stringify(nextUsers));
+    void fetch(`${API_BASE_URL}/api/users`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextUsers)
+    }).catch(() => undefined);
     window.dispatchEvent(new CustomEvent("cuddy-auth-change"));
   }
 
@@ -505,20 +526,40 @@ export function AdminPanel() {
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
   }
 
-  function sendNotification(user: DemoUser, text: string) {
-    const notification: SupportMessage = {
-      id: `notification-${Date.now()}`,
+  function getNotificationRecipients() {
+    const recipients = new Map<string, NonNullable<SupportMessage["user"]>>();
+    users.forEach((user) => {
+      recipients.set(user.id, { id: user.id, name: user.name, email: user.email });
+    });
+    supportMessages.forEach((message) => {
+      if (message.user?.id) recipients.set(message.user.id, message.user);
+    });
+    return [...recipients.values()];
+  }
+
+  function sendBroadcastNotification(title: string, text: string, scheduledAt?: string) {
+    const recipients = getNotificationRecipients();
+    if (!recipients.length) return 0;
+    const deliveryDate = scheduledAt ? new Date(scheduledAt) : new Date();
+    const createdAt = Number.isNaN(deliveryDate.getTime()) ? new Date().toISOString() : deliveryDate.toISOString();
+    const batchId = Date.now();
+    const notifications: SupportMessage[] = recipients.map((user, index) => ({
+      id: `notification-${batchId}-${index}`,
       conversationId: user.id,
       from: "admin",
       kind: "notification",
+      title,
       text,
-      createdAt: new Date().toISOString(),
-      user: { id: user.id, name: user.name, email: user.email }
-    };
-    saveSupportMessages([...supportMessages, notification]);
+      createdAt,
+      scheduledAt: scheduledAt ? createdAt : undefined,
+      status: "sent",
+      user
+    }));
+    saveSupportMessages([...supportMessages, ...notifications]);
     const unread = Number(localStorage.getItem(SUPPORT_UNREAD_KEY) ?? "0") + 1;
     localStorage.setItem(SUPPORT_UNREAD_KEY, String(unread));
     window.dispatchEvent(new CustomEvent("cuddy-support-change"));
+    return notifications.length;
   }
 
   if (!authorized) {
@@ -624,6 +665,7 @@ export function AdminPanel() {
               { id: "site" as const, label: "Sayt matnlari" },
               { id: "privacy" as const, label: "Maxfiylik" },
               { id: "chats" as const, label: "Chatlar", icon: MessageCircle },
+              { id: "notifications" as const, label: "Bildirishnomalar", icon: Bell },
               { id: "profiles" as const, label: "Userlar", icon: UserRound },
               { id: "admins" as const, label: "Adminlar", icon: KeyRound }
             ].map((item) => (
@@ -663,8 +705,16 @@ export function AdminPanel() {
                 clearMessages={() => saveSupportMessages(starterSupportMessages)}
               />
             ) : null}
+            {tab === "notifications" ? (
+              <NotificationsPanel
+                messages={supportMessages}
+                users={users}
+                recipientsCount={getNotificationRecipients().length}
+                sendBroadcastNotification={sendBroadcastNotification}
+              />
+            ) : null}
             {tab === "profiles" ? (
-              <ProfilesPanel users={users} saveUsers={saveUsers} sendNotification={sendNotification} />
+              <ProfilesPanel users={users} saveUsers={saveUsers} />
             ) : null}
             {tab === "admins" ? (
               <AdminAccountsPanel
@@ -1093,17 +1143,131 @@ function SupportInbox({
   );
 }
 
+function NotificationsPanel({
+  messages,
+  users,
+  recipientsCount,
+  sendBroadcastNotification
+}: {
+  messages: SupportMessage[];
+  users: DemoUser[];
+  recipientsCount: number;
+  sendBroadcastNotification: (title: string, text: string, scheduledAt?: string) => number;
+}) {
+  const [title, setTitle] = useState("Yangi bildirishnoma");
+  const [body, setBody] = useState("Cuddy Pro platformasida siz uchun yangi yangilik bor.");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [message, setMessage] = useState("");
+  const notifications = messages
+    .filter((item) => item.kind === "notification")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const plannedCount = notifications.filter((item) => new Date(item.createdAt).getTime() > Date.now()).length;
+  const deliveredCount = notifications.length - plannedCount;
+
+  function submitNotification(useSchedule: boolean) {
+    if (!title.trim() || !body.trim()) {
+      setMessage("Mavzu va tavsifni kiriting.");
+      return;
+    }
+    if (useSchedule && !scheduledAt) {
+      setMessage("Rejalashtirish uchun sana va vaqt tanlang.");
+      return;
+    }
+    const sentCount = sendBroadcastNotification(title.trim(), body.trim(), useSchedule ? scheduledAt : undefined);
+    if (!sentCount) {
+      setMessage("Hali user yoki chat profili topilmadi. Avval user ro'yxatdan o'tsin yoki supportga yozsin.");
+      return;
+    }
+    setMessage(useSchedule ? `${sentCount} ta user uchun bildirishnoma rejalashtirildi.` : `${sentCount} ta userga bildirishnoma yuborildi.`);
+  }
+
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <AnalyticsStat label="Qabul qiluvchilar" value={recipientsCount} />
+        <AnalyticsStat label="Ro'yxatdan o'tganlar" value={users.length} />
+        <AnalyticsStat label="Yuborilgan" value={deliveredCount} />
+        <AnalyticsStat label="Rejada" value={plannedCount} />
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className={editorCardClass}>
+          <EditorHeader title="Bildirishnomalar" body="Mavzu va tavsif yozing. Yuborilganda xabar barcha userlarga bir vaqtda boradi." />
+          <div className="grid gap-3">
+            <AdminInput label="Mavzu" value={title} onChange={setTitle} />
+            <AdminTextarea label="Tavsif" value={body} onChange={setBody} />
+            <label className="block min-w-0">
+              <span className="mb-2 block text-sm font-black text-ink">Rejalashtirish vaqti</span>
+              <input
+                className={inputClass}
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(event) => setScheduledAt(event.target.value)}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black" type="button" onClick={() => submitNotification(false)}>
+                <Bell size={16} /> Yuborish
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint" type="button" onClick={() => submitNotification(true)}>
+                Rejalashtirish
+              </button>
+            </div>
+            {message ? <div className="rounded-[22px] bg-mint p-4 text-sm font-black text-ink">{message}</div> : null}
+          </div>
+        </div>
+
+        <div className={editorCardClass}>
+          <EditorHeader title="Holat" body="Notificationlar user saytida support iconkasi tepasida alohida ko'rinadi." />
+          <div className="grid gap-3">
+            <ProfileStat label="Broadcast target" value={`${recipientsCount} user/chat`} />
+            <ProfileStat label="Ko'rinishi" value="Support ustida Bell indicator" />
+            <ProfileStat label="Animatsiya" value="O'qilmaguncha qimirlab turadi" />
+          </div>
+        </div>
+      </div>
+
+      <div className={dashboardFrameClass}>
+        <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5">
+          <h2 className="text-xl font-black text-ink">Yuborilgan va rejalashtirilgan bildirishnomalar</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Har bir user uchun yaratilgan notification yozuvlari shu ro'yxatda ko'rinadi.</p>
+        </div>
+        <div className="grid max-h-[520px] gap-3 overflow-auto p-4">
+          {notifications.length ? notifications.slice(0, 40).map((notification) => {
+            const isPlanned = new Date(notification.createdAt).getTime() > Date.now();
+            return (
+              <article key={notification.id} className="rounded-[26px] border border-white/80 bg-panel p-4 shadow-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <strong className="block break-words text-ink">{notification.title ?? "Bildirishnoma"}</strong>
+                    <p className="mt-1 break-words text-sm leading-6 text-ink/62">{notification.text}</p>
+                  </div>
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${isPlanned ? "bg-white text-ink" : "bg-mint text-ink"}`}>
+                    {isPlanned ? "Rejada" : "Yuborilgan"}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs font-bold text-ink/45">
+                  {notification.user?.name ?? "User"} | {new Date(notification.createdAt).toLocaleString("uz-UZ")}
+                </p>
+              </article>
+            );
+          }) : (
+            <div className="rounded-[24px] bg-panel p-5 text-sm font-bold text-ink/55">Hali bildirishnoma yuborilmagan.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProfilesPanel({
   users,
-  saveUsers,
-  sendNotification
+  saveUsers
 }: {
   users: DemoUser[];
   saveUsers: (users: DemoUser[]) => void;
-  sendNotification: (user: DemoUser, text: string) => void;
 }) {
   const [activeUserId, setActiveUserId] = useState(users[0]?.id ?? "");
-  const [notification, setNotification] = useState("Platformada siz uchun yangi bildirishnoma bor.");
   const activeUser = users.find((user) => user.id === activeUserId) ?? users[0];
   const usageRows = activeUser ? getUserUsageRows(activeUser.id) : [];
 
@@ -1116,12 +1280,6 @@ function ProfilesPanel({
   function updateUser(patch: Partial<DemoUser>) {
     if (!activeUser) return;
     saveUsers(users.map((user) => (user.id === activeUser.id ? { ...user, ...patch } : user)));
-  }
-
-  function submitNotification() {
-    if (!activeUser || !notification.trim()) return;
-    sendNotification(activeUser, notification.trim());
-    setNotification("");
   }
 
   return (
@@ -1153,7 +1311,7 @@ function ProfilesPanel({
         </div>
 
         <div className={editorCardClass}>
-          <EditorHeader title="Profil va parol boshqaruvi" body="Demo profillarni tahrirlash va userga bildirishnoma yuborish." />
+          <EditorHeader title="Profil va parol boshqaruvi" body="Demo profillarni tahrirlash va user statistikalarini ko'rish." />
           {activeUser ? (
             <div className="grid gap-4">
               <div className="grid gap-3 md:grid-cols-2">
@@ -1161,19 +1319,6 @@ function ProfilesPanel({
                 <AdminInput label="Email" value={activeUser.email} onChange={(email) => updateUser({ email })} />
                 <AdminInput label="Parol" value={activeUser.password ?? ""} onChange={(password) => updateUser({ password })} />
                 <ProfileStat label="User ID" value={activeUser.id} />
-              </div>
-
-              <div className="rounded-[26px] bg-panel p-4">
-                <span className="text-xs font-black uppercase text-ink/45">Bildirishnoma yuborish</span>
-                <textarea
-                  className={`${textareaClass} mt-3`}
-                  value={notification}
-                  onChange={(event) => setNotification(event.target.value)}
-                  placeholder="Userga yuboriladigan xabar..."
-                />
-                <button className="mt-3 inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-black text-mint hover:bg-black" type="button" onClick={submitNotification}>
-                  <Bell size={16} /> Bildirishnoma yuborish
-                </button>
               </div>
 
               <div className="rounded-[26px] bg-panel p-4">

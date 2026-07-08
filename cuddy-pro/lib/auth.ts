@@ -23,6 +23,7 @@ export type UserUsage = Record<string, UsageRecord>;
 
 const USERS_KEY = "cuddy-users";
 const SESSION_KEY = "cuddy-session";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export function getUsers(): DemoUser[] {
   if (typeof window === "undefined") return [];
@@ -35,6 +36,14 @@ export function getUsers(): DemoUser[] {
 
 function saveUsers(users: DemoUser[]) {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function syncUserToBackend(user: DemoUser) {
+  void fetch(`${API_BASE_URL}/api/users/upsert`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(user)
+  }).catch(() => undefined);
 }
 
 function notifyAuthChange() {
@@ -58,6 +67,7 @@ export function registerUser(name: string, email: string, password: string): Dem
     }
     localStorage.setItem(SESSION_KEY, existingUser.id);
     localStorage.setItem("cuddy-auth", "true");
+    syncUserToBackend(existingUser);
     notifyAuthChange();
     return existingUser;
   }
@@ -73,6 +83,7 @@ export function registerUser(name: string, email: string, password: string): Dem
   saveUsers([...users, user]);
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
+  syncUserToBackend(user);
   notifyAuthChange();
   return user;
 }
@@ -84,6 +95,7 @@ export function registerGoogleDemoUser(): DemoUser {
   if (existingUser) {
     localStorage.setItem(SESSION_KEY, existingUser.id);
     localStorage.setItem("cuddy-auth", "true");
+    syncUserToBackend(existingUser);
     notifyAuthChange();
     return existingUser;
   }
@@ -99,6 +111,7 @@ export function registerGoogleDemoUser(): DemoUser {
   saveUsers([...users, user]);
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
+  syncUserToBackend(user);
   notifyAuthChange();
   return user;
 }
@@ -111,6 +124,7 @@ export function loginUser(email: string, password: string): DemoUser {
   }
   localStorage.setItem(SESSION_KEY, user.id);
   localStorage.setItem("cuddy-auth", "true");
+  syncUserToBackend(user);
   notifyAuthChange();
   return user;
 }
