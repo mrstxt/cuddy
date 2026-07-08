@@ -112,6 +112,49 @@ cuddy-pro/cloudflare/api-worker/
 Eslatma: hozirgi Python API demo JSON persistence ishlatadi (`cuddy-pro/backend/data/` runtime
 papka). Production uchun admin state, user, chat va limitlarni haqiqiy databasega ulash kerak.
 
+### Fly.io Backend Varianti
+
+Python API'ni Fly.io'ga joylash Cloudflare Containers'dan sodda bo'lishi mumkin.
+Frontend va admin Cloudflare Pages'da qoladi, backend esa Fly.io'da ishlaydi:
+
+```text
+cuddy.uz        -> Cloudflare Pages / cuddy-pro
+admin.cuddy.uz  -> Cloudflare Pages / admin
+api.cuddy.uz    -> Fly.io / cuddy-pro/backend
+```
+
+Backend config:
+
+```text
+cuddy-pro/backend/fly.toml
+```
+
+Deploy:
+
+```bash
+brew install flyctl
+fly auth login
+cd cuddy-pro/backend
+fly apps create cuddy-pro-api
+fly volumes create cuddy_data --size 1 --region fra
+fly secrets set OPENAI_API_KEY=...
+fly secrets set PHOTOROOM_API_KEY=...
+fly secrets set PICSART_API_KEY=...
+fly deploy
+```
+
+Keyin custom domain:
+
+```bash
+fly certs add api.cuddy.uz
+```
+
+Cloudflare DNS'da Fly.io ko'rsatgan CNAME/A/AAAA yozuvlarini qo'shing.
+
+Fly.io yangi accountlarda to'liq free hosting emas: usage-based billing va credit card talab
+qilinishi mumkin. Kichik 256MB shared machine auto-stop bilan juda arzon ishlaydi, lekin 0$ deb
+kafolat bermang.
+
 ## Tayyor Toollar
 
 - Code Screenshot Generator
