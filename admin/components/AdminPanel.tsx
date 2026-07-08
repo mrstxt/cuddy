@@ -81,6 +81,7 @@ const USERS_KEY = "cuddy-users";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const editorCardClass = "rounded-[30px] border border-white/75 bg-white/88 p-4 shadow-sm ring-1 ring-black/[0.03] transition hover:-translate-y-0.5 hover:shadow-soft sm:p-5";
+const dashboardFrameClass = "overflow-hidden rounded-[36px] border border-white/75 bg-white/88 shadow-sm ring-1 ring-black/[0.03]";
 const inputClass =
   "w-full rounded-[20px] border border-black/10 bg-white/82 px-4 py-3 text-sm text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white focus:shadow-sm";
 const textareaClass =
@@ -479,22 +480,22 @@ export function AdminPanel() {
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-ink/65">
               Tool'lar, sayt matnlari va maxfiylik bloklarini boshqarish uchun admin kodni kiriting.
             </p>
-          <div className="mx-auto mt-7 grid max-w-md gap-3">
-            <input
-              className="w-full rounded-[24px] border border-black/10 bg-panel px-4 py-4 text-center font-black text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") login();
-              }}
-              placeholder="Admin kod"
-              type="password"
-            />
-            <button className="rounded-full bg-ink px-5 py-3 text-sm font-black uppercase text-mint shadow-sm hover:bg-black" type="button" onClick={login}>
-              Kirish
-            </button>
-            <p className="text-center text-xs font-bold text-ink/45">Demo kod: cuddy-pro</p>
-          </div>
+            <div className="mx-auto mt-7 grid max-w-md gap-3">
+              <input
+                className="w-full rounded-[24px] border border-black/10 bg-panel px-4 py-4 text-center font-black text-ink shadow-inner outline-none transition focus:border-mint focus:bg-white"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") login();
+                }}
+                placeholder="Admin kod"
+                type="password"
+              />
+              <button className="rounded-full bg-ink px-5 py-3 text-sm font-black uppercase text-mint shadow-sm hover:bg-black" type="button" onClick={login}>
+                Kirish
+              </button>
+              <p className="text-center text-xs font-bold text-ink/45">Demo kod: cuddy-pro</p>
+            </div>
           </div>
         </section>
       </main>
@@ -506,28 +507,28 @@ export function AdminPanel() {
       <section className="overflow-hidden rounded-[42px] border border-white/80 bg-white/78 shadow-soft backdrop-blur">
         <div className="relative overflow-hidden border-b border-black/10 bg-[radial-gradient(circle_at_18%_20%,rgba(182,255,0,0.55),transparent_26%),linear-gradient(135deg,#ffffff_0%,#f7ffdb_48%,#eef5ff_100%)] p-5 sm:p-7">
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <span className="inline-flex rounded-full bg-ink px-4 py-2 text-xs font-black uppercase text-mint shadow-sm">Cuddy Pro Admin</span>
-            <h1 className="mt-4 text-3xl font-black leading-tight text-ink sm:text-5xl">Sayt boshqaruvi</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-ink/65">
-              Tool nomlari, tavsiflar, asosiy matnlar va maxfiylik shartlarini bir joydan tahrirlang.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-black text-mint shadow-sm hover:bg-black" type="button" onClick={save}>
-              <Save size={16} /> Saqlash
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint" type="button" onClick={exportJson}>
-              <Download size={16} /> Export
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={reset}>
-              <RotateCcw size={16} /> Reset
-            </button>
-          </div>
+            <div className="min-w-0">
+              <span className="inline-flex rounded-full bg-ink px-4 py-2 text-xs font-black uppercase text-mint shadow-sm">Cuddy Pro Admin</span>
+              <h1 className="mt-4 text-3xl font-black leading-tight text-ink sm:text-5xl">Sayt boshqaruvi</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-ink/65">
+                Tool nomlari, tavsiflar, asosiy matnlar va maxfiylik shartlarini bir joydan tahrirlang.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-black text-mint shadow-sm hover:bg-black" type="button" onClick={save}>
+                <Save size={16} /> Saqlash
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-mint" type="button" onClick={exportJson}>
+                <Download size={16} /> Export
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-3 text-sm font-black text-ink shadow-sm hover:bg-[#fff1ed]" type="button" onClick={reset}>
+                <RotateCcw size={16} /> Reset
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4 bg-ink p-4 sm:grid-cols-3 lg:p-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4 bg-ink p-4 lg:p-5">
           {stats.map((item) => (
             <div key={item.label} className="rounded-[28px] border border-white/10 bg-white/[0.08] p-5 text-white shadow-sm backdrop-blur">
               <strong className="block text-3xl font-black text-mint">{item.value}</strong>
@@ -536,7 +537,7 @@ export function AdminPanel() {
           ))}
         </div>
 
-        <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="grid items-start gap-5 p-4 sm:p-6 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="h-fit rounded-[32px] border border-white/75 bg-panel/90 p-2 shadow-sm lg:sticky lg:top-6">
             {[
               { id: "analytics" as const, label: "Analitika", icon: BarChart3 },
@@ -621,12 +622,12 @@ function AnalyticsPanel({ tools, limits }: { tools: EditableTool[]; limits: Tool
         <AnalyticsStat label="Limit to'siqlari" value={blockedTotal} />
         <AnalyticsStat label="Eng talabgir" value={topTool?.name ?? "-"} />
       </div>
-      <div className="overflow-hidden rounded-[34px] border border-white/75 bg-white/88 shadow-sm ring-1 ring-black/[0.03]">
+      <div className={dashboardFrameClass}>
         <div className="border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_100%)] p-5">
-        <h2 className="text-xl font-black text-ink">Tool talab va limit analitikasi</h2>
-        <p className="mt-1 text-sm leading-6 text-ink/60">
-          Demo panel: production’da bu qiymatlar backend eventlari va database orqali real vaqtda to'planadi.
-        </p>
+          <h2 className="text-xl font-black text-ink">Tool talab va limit analitikasi</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/60">
+            Demo panel: production’da bu qiymatlar backend eventlari va database orqali real vaqtda to'planadi.
+          </p>
         </div>
         <div className="grid gap-3 p-4">
           {rows.map((row) => {
@@ -726,11 +727,11 @@ function ToolsEditor({
       {editableTools.map((tool, index) => (
         <article key={tool.slug} className={editorCardClass}>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <span className="text-xs font-black uppercase text-ink/40">{tool.slug}</span>
               <h2 className="text-xl font-black text-ink">{tool.name}</h2>
             </div>
-            <label className={`flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-black shadow-sm ${tool.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
+            <label className={`flex w-fit shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-black shadow-sm ${tool.enabled ? "bg-mint text-ink" : "bg-[#fff1ed] text-tomato"}`}>
               <input checked={tool.enabled} type="checkbox" onChange={(event) => confirmToolStatusChange(index, event.target.checked)} />
               {tool.enabled ? "Faol" : "Vaqtincha yopiq"}
             </label>
@@ -824,7 +825,7 @@ function getUserUsageRows(userId: string) {
 
 function ProfileStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[20px] bg-white p-3">
+    <div className="min-w-0 rounded-[20px] bg-white p-3">
       <span className="text-[10px] font-black uppercase text-ink/40">{label}</span>
       <p className="mt-1 break-all text-sm font-black text-ink">{value}</p>
     </div>
@@ -890,7 +891,7 @@ function SupportInbox({
         <AnalyticsStat label="Admin javoblari" value={messages.filter((message) => message.from === "admin").length} />
       </div>
 
-      <div className="overflow-hidden rounded-[36px] border border-white/75 bg-white/88 shadow-sm ring-1 ring-black/[0.03]">
+      <div className={dashboardFrameClass}>
         <div className="flex flex-col gap-3 border-b border-black/10 bg-[linear-gradient(135deg,#ffffff_0%,#f7ffdb_55%,#eef5ff_100%)] p-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="text-xs font-black uppercase text-ink/45">Chatlar</span>
@@ -904,8 +905,8 @@ function SupportInbox({
           </button>
         </div>
 
-        <div className="grid gap-4 p-4 xl:grid-cols-[290px_minmax(0,1fr)_330px]">
-          <div className="max-h-[590px] space-y-2 overflow-auto rounded-[28px] border border-white/80 bg-panel p-2 shadow-inner">
+        <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(240px,320px)_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)_330px]">
+          <div className="order-1 max-h-[420px] space-y-2 overflow-auto rounded-[28px] border border-white/80 bg-panel p-2 shadow-inner lg:max-h-[min(68vh,650px)]">
             {conversations.length ? conversations.map((conversation) => (
               <button
                 key={conversation.id}
@@ -914,9 +915,9 @@ function SupportInbox({
                 onClick={() => selectConversation(conversation.id)}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <strong className="block text-sm">{conversation.user?.name ?? "Demo mehmon"}</strong>
-                    <span className={`mt-1 block text-xs ${activeConversation?.id === conversation.id ? "text-white/55" : "text-ink/45"}`}>{conversation.user?.email ?? conversation.id}</span>
+                    <span className={`mt-1 block truncate text-xs ${activeConversation?.id === conversation.id ? "text-white/55" : "text-ink/45"}`}>{conversation.user?.email ?? conversation.id}</span>
                   </div>
                   {conversation.unread ? <span className="grid h-6 min-w-6 place-items-center rounded-full bg-tomato px-2 text-xs font-black text-white">{conversation.unread}</span> : null}
                 </div>
@@ -929,9 +930,9 @@ function SupportInbox({
             )}
           </div>
 
-          <div className="grid min-h-[590px] grid-rows-[1fr_auto] overflow-hidden rounded-[28px] border border-white/80 bg-panel shadow-inner">
+          <div className="order-2 grid h-[min(72vh,650px)] min-h-[460px] grid-rows-[1fr_auto] overflow-hidden rounded-[28px] border border-white/80 bg-panel shadow-inner">
             <div className="space-y-3 overflow-auto p-4">
-              {activeMessages.map((message) => (
+              {activeMessages.length ? activeMessages.map((message) => (
                 <div key={message.id} className={`flex ${message.from === "admin" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[84%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm ${message.from === "admin" ? "bg-ink text-white" : "bg-white text-ink"}`}>
                     <span className={`mb-1 block text-[10px] font-black uppercase ${message.from === "admin" ? "text-mint" : "text-ink/40"}`}>
@@ -944,7 +945,17 @@ function SupportInbox({
                     </span>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="grid h-full place-items-center rounded-[24px] bg-white/70 p-6 text-center">
+                  <div>
+                    <div className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint">
+                      <MessageCircle size={22} />
+                    </div>
+                    <h3 className="mt-4 text-lg font-black text-ink">Chat tanlanmagan</h3>
+                    <p className="mt-1 max-w-sm text-sm leading-6 text-ink/55">User supportdan yozganda suhbat shu panelda ko'rinadi.</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="border-t border-black/10 bg-white/95 p-3">
               <div className="flex gap-2 rounded-[24px] bg-panel p-2 shadow-inner">
@@ -964,13 +975,13 @@ function SupportInbox({
             </div>
           </div>
 
-          <div className="h-fit rounded-[28px] border border-white/80 bg-panel p-4 shadow-sm">
+          <div className="order-3 h-fit rounded-[28px] border border-white/80 bg-panel p-4 shadow-sm lg:col-span-2 2xl:col-span-1">
             <div className="grid h-14 w-14 place-items-center rounded-[20px] bg-ink text-mint shadow-glow">
               <UserRound size={24} />
             </div>
-            <h3 className="mt-4 text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Demo mehmon"}</h3>
-            <p className="mt-1 text-sm font-bold text-ink/55">{activeConversation?.user?.email ?? activeUser?.email ?? "guest@cuddy.pro"}</p>
-            <div className="mt-4 grid gap-3">
+            <h3 className="mt-4 break-words text-xl font-black text-ink">{activeConversation?.user?.name ?? activeUser?.name ?? "Demo mehmon"}</h3>
+            <p className="mt-1 break-all text-sm font-bold text-ink/55">{activeConversation?.user?.email ?? activeUser?.email ?? "guest@cuddy.pro"}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
               <ProfileStat label="Account" value={activeUser ? "Registered" : "Guest/Demo"} />
               <ProfileStat label="User ID" value={activeConversation?.user?.id ?? activeConversation?.id ?? "-"} />
               <ProfileStat label="Chat xabarlari" value={String(activeMessages.length)} />
@@ -1034,19 +1045,19 @@ function ProfilesPanel({
         <AnalyticsStat label="Tool usage" value={usageRows.reduce((sum, row) => sum + row.used, 0)} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className={editorCardClass}>
           <EditorHeader title="Userlar" body="Ro'yxatdan o'tgan profillar ro'yxati." />
           <div className="grid max-h-[560px] gap-2 overflow-auto">
             {users.length ? users.map((user) => (
               <button
                 key={user.id}
-                className={`rounded-[24px] p-4 text-left text-sm shadow-sm transition ${activeUser?.id === user.id ? "bg-ink text-white" : "bg-panel text-ink hover:bg-mint"}`}
+                className={`min-w-0 rounded-[24px] p-4 text-left text-sm shadow-sm transition ${activeUser?.id === user.id ? "bg-ink text-white" : "bg-panel text-ink hover:bg-mint"}`}
                 type="button"
                 onClick={() => setActiveUserId(user.id)}
               >
-                <strong className="block">{user.name}</strong>
-                <span className={`mt-1 block text-xs ${activeUser?.id === user.id ? "text-white/55" : "text-ink/50"}`}>{user.email}</span>
+                <strong className="block truncate">{user.name}</strong>
+                <span className={`mt-1 block truncate text-xs ${activeUser?.id === user.id ? "text-white/55" : "text-ink/50"}`}>{user.email}</span>
               </button>
             )) : (
               <div className="rounded-[24px] bg-panel p-5 text-sm font-bold text-ink/55">Hali user ro'yxatdan o'tmagan.</div>
@@ -1101,7 +1112,7 @@ function ProfilesPanel({
 
 function AdminInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-2 block text-sm font-black text-ink">{label}</span>
       <input
         className={inputClass}
@@ -1114,7 +1125,7 @@ function AdminInput({ label, value, onChange }: { label: string; value: string; 
 
 function AdminTextarea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-2 block text-sm font-black text-ink">{label}</span>
       <textarea
         className={textareaClass}
